@@ -141,7 +141,8 @@ class ArtyA7Config extends Config(
     //new freechips.rocketchip.subsystem.WithInclusiveCache(nBanks = 1, nWays = 2, capacityKB = 16) ++       // use Sifive L2 cache
     new freechips.rocketchip.subsystem.WithNExtTopInterrupts(0) ++ // no external interrupts
     new freechips.rocketchip.subsystem.WithoutFPU() ++
-    new freechips.rocketchip.subsystem.WithNMedCores(1) ++            // single rocket-core with VM support and FPU
+//    new freechips.rocketchip.subsystem.WithNMedCores(1) ++            // single rocket-core with VM support and FPU
+    new freechips.rocketchip.subsystem.WithNSmallCores(1) ++            // single rocket-core with VM support and FPU
     new freechips.rocketchip.subsystem.WithCoherentBusTopology ++  // Hierarchical buses with broadcast L2
     new freechips.rocketchip.system.BaseConfig)                    // "base" rocketchip system
 
