@@ -34,6 +34,7 @@ class TRNG extends Module {
   val io = IO(new Bundle {
     val iClk   = Input(Clock())
     val iRst   = Input(Bool())
+    val iEn    = Input(Bool())
     val iDelay  = Input(UInt(16.W))
     val oReady = Output(Bool())
     val oValid = Output(Bool())
@@ -104,37 +105,38 @@ abstract class TRNGmod(busWidthBytes: Int, c: TRNGParams)(implicit p: Parameters
     val mod = Module(new TRNG)
 
     // declare inputs
-//    val data_a = Reg(UInt(16.W))
-//    val data_b = Reg(UInt(16.W))
     val rst    = RegInit(false.B)
-    val trig   = WireInit(false.B)
+    val enable   = RegInit(false.B) //enable signal for RO
+    val delay = RegInit(UInt(32.W))
     // mapping inputs
     mod.io.iClk   := clock
     mod.io.iRst   := reset.asBool || rst
-    mod.io.iValid := trig
-    mod.io.iA     := data_a
-    mod.io.iB     := data_b
+    mod.io.iEn    := enable
+    mod.io.iDelay := delay
 
     // declare outputs
     val ready  = Wire(Bool())
     val valid  = Wire(Bool())
-    val data_c = Wire(UInt(16.W))
+    val rand = Wire(UInt(16.W))
     // mapping outputs
     ready  := mod.io.oReady
     valid  := mod.io.oValid
-    data_c := RegEnable(mod.io.oC, valid)
+    rand := RegEnable(mod.io.oRand, valid)
 
     // map inputs & outputs to register positions
     val mapping = Seq(
-      TRNGCtrlRegs.trigger -> Seq(
-        RegField(1, trig, RegFieldDesc("trigger", "TRNG trigger/start")),
+      TRNGCtrlRegs.control -> Seq(
+        RegField(1, enable, RegFieldDesc("trigger", "TRNG trigger/start")),
         RegField(7),
-        RegField(1, rst, RegFieldDesc("rst", "GCD Reset", reset = Some(0)))
+        RegField(1, rst, RegFieldDesc("rst", "TRNG Reset", reset = Some(0)))
       ),
-      TRNGCtrlRegs.data_a -> Seq(RegField(16, data_a, RegFieldDesc("data_a", "A data for GCD"))),
-      TRNGCtrlRegs.data_b -> Seq(RegField(16, data_b, RegFieldDesc("data_b", "B data for GCD"))),
-      TRNGCtrlRegs.data_c -> Seq(RegField.r(16, data_c, RegFieldDesc("data_c", "C output for GCD", volatile = true))),
-      TRNGCtrlRegs.status -> Seq(RegField.r(1, ready, RegFieldDesc("ready", "GCD data ready", volatile = true))),
+      TRNGCtrlRegs.status -> Seq(
+        RegField.r(1, ready, RegFieldDesc("ready", "TRNG ready", volatile = true)),
+        RegField(7),
+        RegField.r(1, valid, RegFieldDesc("ready", "TRNG data valid", volatile = true)),
+      ),
+      TRNGCtrlRegs.delay -> Seq(RegField(32, delay, RegFieldDesc("data_a", "delay time for calibrartion TRNG"))),
+      TRNGCtrlRegs.random -> Seq(RegField(32, rand, RegFieldDesc("data_b", "random output for TRNG", volatile = true))),
     )
     regmap(mapping :_*)
     val omRegMap = OMRegister.convert(mapping:_*)
