@@ -13,6 +13,7 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
+import riscvconsole.devices.primitives._
 
 // hardware wrapper for Verilog file: module name & ports MUST MATCH the Verilog's
 
@@ -72,12 +73,47 @@ class RingGenerator(flipFlops: Int, polynomial: String) extends Module {
   io.out := stateReg
 }
 
+class ring_osc(val stage: Int = 4 /*number of inverters*/) extends Module {
+  val io = IO(new Bundle{
+    val i_en = Input(Bool())
+    val o_out = Output(UInt(5.W))
+  })
+
+  /* Generate elements */
+  /* This code essentially creates a vector "ro_invs" containting "stage" instances of the "xilinx_not" module
+  * and provides access to their IO ports for further connections or usage */
+
+  val ro_invs = VecInit(Seq.tabulate(stage){case i =>
+    val m = Module(new xilinx_not())
+    m.suggestName(s"not_gate_${i}")
+    m.io
+  })
+
+  val ro_nand = Module(new xilinx_nand())
+  ro_nand.suggestName(s"nand_gate")
+
+  /* Structure of the ring osc */
+  (0 until stage).map(i =>
+    if(i==0){
+      ro_nand.io.in1 := ro_invs(i).out
+    }
+
+  )
+
+
+}
+
+
 //object RingGeneratorMain extends App {
 //  val flipFlops = 8 // Number of flip-flops
 //  val polynomial = "100011101" // Polynomial function x^8 + x^4 + x^3 + x^2 + 1
 //
 //  chisel3.Driver.execute(args, () => new RingGenerator(flipFlops, polynomial))
 //}
+
+
+
+
 
 
 // declare params
@@ -133,10 +169,10 @@ abstract class TRNGmod(busWidthBytes: Int, c: TRNGParams)(implicit p: Parameters
       TRNGCtrlRegs.status -> Seq(
         RegField.r(1, ready, RegFieldDesc("ready", "TRNG ready", volatile = true)),
         RegField(7),
-        RegField.r(1, valid, RegFieldDesc("ready", "TRNG data valid", volatile = true)),
+        RegField.r(1, valid, RegFieldDesc("valid", "TRNG data valid", volatile = true)),
       ),
-      TRNGCtrlRegs.delay -> Seq(RegField(32, delay, RegFieldDesc("data_a", "delay time for calibrartion TRNG"))),
-      TRNGCtrlRegs.random -> Seq(RegField(32, rand, RegFieldDesc("data_b", "random output for TRNG", volatile = true))),
+      TRNGCtrlRegs.delay -> Seq(RegField(32, delay, RegFieldDesc("delay", "delay time for calibrartion TRNG"))),
+      TRNGCtrlRegs.random -> Seq(RegField(32, rand, RegFieldDesc("random", "random output for TRNG", volatile = true))),
     )
     regmap(mapping :_*)
     val omRegMap = OMRegister.convert(mapping:_*)
