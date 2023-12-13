@@ -16,7 +16,7 @@ class TRNGIO() extends Bundle {
   val iRst = Input(Bool())
   val iEn = Input(Bool())
   val iDelay = Input(UInt(32.W))
-  val oReady = Output(Bool())
+  val iNext = Input(Bool())
   val oValid = Output(Bool())
   val oRand = Output(UInt(32.W))
 }
@@ -37,25 +37,13 @@ class TRNG extends Module with hasTRNGIO {
   val ro = Module(new RingOscillator(4, true))
 
   //Default
-  val rg_inject = WireDefault(0.U(5.W))
-  val rg_enable = WireDefault(0.U(1.W))
   val rg_bit    = WireDefault(0.U(1.W))
-
-  val ro_enable = WireDefault(0.U(1.W))
-  val ro_out    = WireDefault(0.U(5.W))
-
-  rg_inject := ro_out
-  rg_enable := io.iEn
   rg_bit := rg.io.o_bit
-
-  ro_enable := io.iEn
-  ro_out := ro.io.o_out
-
+  
   /* Pins */
-  rg.io.i_inject := rg_inject
-  rg.io.i_en := rg_enable
-
-  ro.io.i_en := rg_enable
+  rg.io.i_inject := ro.io.o_out
+  rg.io.i_en := io.iEn
+  ro.io.i_en := io.iEn
 
   //delay counter - initial wait time for calibration
   val tick = RegInit(false.B)
@@ -107,31 +95,29 @@ class TRNG extends Module with hasTRNGIO {
 //    }
 //  }
 
-  when(io.iRst && !ready){
+  def risingedge(x: Bool) = x && !RegNext(x)
+  val nextTrigger = risingedge(io.iNext)
+
+  when(io.iRst || nextTrigger){ //restart sampling when reset or ready to sample
     collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
     valid := false.B // reset valid when not sampling
-    ready := true.B //ready for next sampling process
-    io.oRand := 0.U // reset output when not sampling
   }.otherwise{
-    when(tick && ready) {
+    when(tick && !valid) {
       shiftReg := rg_bit ## shiftReg(31, 1)
       collectCnt := collectCnt + 1.U
       when(collectCnt === 31.U) {
         valid := true.B //valid read data
-        ready := false.B //not sampling, data is available to read
-        io.oRand := shiftReg //output data
       }.otherwise{
         valid := valid
-        ready := ready
-        io.oRand := 0.U
       }
     }.otherwise{
       collectCnt := collectCnt
-      io.oRand := 0.U
     }
   }
 
-  io.oReady := ready
+  
+
+  io.oRand := Mux(valid, shiftReg, 0.U)
   io.oValid := valid
 
 
@@ -185,34 +171,34 @@ abstract class TRNGmod(busWidthBytes: Int, c: TRNGParams)(implicit p: Parameters
 
     // declare inputs
     val rst    = RegInit(false.B)
-    val enable = RegInit(false.B) //enable signal for RO
+    val enable = RegInit(false.B)
+    val next   = RegInit(false.B)
     val delay  = RegInit(0.U(32.W))
     // mapping inputs
     mod.io.iClk   := clock
     mod.io.iRst   := reset.asBool || rst
     mod.io.iEn    := enable
+    mod.io.iNext  := next
     mod.io.iDelay := delay
 
     // declare outputs
-    val ready  = Wire(Bool())
     val valid  = Wire(Bool())
-    val rand = Wire(UInt(16.W))
+    val rand = Wire(UInt(32.W))
     // mapping outputs
-    ready  := mod.io.oReady
     valid  := mod.io.oValid
-    rand := RegEnable(mod.io.oRand, valid)
+    // rand := RegEnable(mod.io.oRand, valid)
+    rand := mod.io.oRand
 
     // map inputs & outputs to register positions
     val mapping = Seq(
       TRNGCtrlRegs.control -> Seq(
-        RegField(1, enable, RegFieldDesc("trigger", "TRNG trigger/start")),
-        RegField(7),
-        RegField(1, rst, RegFieldDesc("rst", "TRNG Reset", reset = Some(0)))
+        RegField(1, enable, RegFieldDesc("trigger", "TRNG enable")),
+        RegField(1, next, RegFieldDesc("trigger", "TRNG next")),
+        RegField(6),
+        RegField(1, rst, RegFieldDesc("rst", "TRNG reset", reset = Some(0)))
       ),
       TRNGCtrlRegs.status -> Seq(
-        RegField.r(1, ready, RegFieldDesc("ready", "TRNG ready", volatile = true)),
-        RegField(7),
-        RegField.r(1, valid, RegFieldDesc("valid", "TRNG data valid", volatile = true)),
+        RegField.r(1, valid, RegFieldDesc("valid", "TRNG data valid", volatile = true))
       ),
       TRNGCtrlRegs.delay -> Seq(RegField(32, delay, RegFieldDesc("delay", "delay time for calibrartion TRNG"))),
       TRNGCtrlRegs.random -> Seq(RegField(32, rand, RegFieldDesc("random", "random output for TRNG", volatile = true))),
