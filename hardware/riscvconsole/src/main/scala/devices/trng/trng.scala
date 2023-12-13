@@ -15,7 +15,7 @@ class TRNGIO() extends Bundle {
   val iClk = Input(Clock())
   val iRst = Input(Bool())
   val iEn = Input(Bool())
-  val iDelay = Input(UInt(16.W))
+  val iDelay = Input(UInt(32.W))
   val oReady = Output(Bool())
   val oValid = Output(Bool())
   val oRand = Output(UInt(32.W))
@@ -58,40 +58,104 @@ class TRNG extends Module with hasTRNGIO {
   ro.io.i_en := rg_enable
 
   //delay counter - initial wait time for calibration
-  val tick = RegInit(0.U(1.W))
-  val delayCnt = RegInit(0.U(16.W))
-  when(io.iRst === 0.U){
+  val tick = RegInit(false.B)
+  val delayCnt = RegInit(0.U(32.W))
+//  when(io.iRst) {
+//    delayCnt := 0.U
+//    tick := false.B
+//  }.elsewhen(io.iEn && !tick) {
+//    delayCnt := delayCnt + 1.U
+//    when(delayCnt === io.iDelay) {
+//      tick := true.B
+//    }
+//  }
+
+  when(io.iRst){
     delayCnt := 0.U
-  }.elsewhen(tick.asBool){
-    delayCnt := 0.U
-  }.elsewhen(io.iEn){
-    delayCnt := delayCnt + 1.U
+    tick := false.B
   }.otherwise{
-    delayCnt := delayCnt
+      when(io.iEn && !tick) {
+        delayCnt := delayCnt + 1.U
+        when(delayCnt === io.iDelay) {
+          tick := true.B
+        }.otherwise{
+          tick := tick
+        }
+      }.otherwise{
+        delayCnt := delayCnt
+        tick := tick
+      }
   }
-  tick := Mux((delayCnt === io.iDelay) & (tick =/= 1.U), 1.U, 0.U)
 
-  //32 counter - only counts when delay is finished
+  val shiftReg = RegInit(0.U(32.W))
   val collectCnt = RegInit(0.U(5.W))
-  when(io.iRst === 0.U) {
-    collectCnt := 0.U
-  }.elsewhen(tick.asBool) {
-    collectCnt := collectCnt + 1.U
-  }.otherwise {
-    collectCnt := collectCnt
-  }
-  val overflow = (collectCnt === 32.U)
-  io.oValid := overflow
+  val valid = RegInit(false.B)
+  val ready = RegInit(true.B)
 
-  //serial to parallel, with enable
-  val outReg = RegInit(0.U(32.W))
-  when(io.iEn){
-    outReg := rg_bit ## outReg(31, 1)
-  }
-  io.oRand := outReg
+//  when(io.iRst && !ready) {
+//    collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
+//    valid := false.B // reset valid when not sampling
+//    ready := true.B //ready for next sampling process
+//    io.oRand := 0.U // reset output when not sampling
+//  }.elsewhen(tick && ready) {
+//    shiftReg := rg_bit ## shiftReg(31, 1)
+//    collectCnt := collectCnt + 1.U
+//    when(collectCnt === 31.U) {
+//      valid := true.B //valid read data
+//      ready := false.B //not sampling, data is available to read
+//      io.oRand := shiftReg //output data
+//    }
+//  }
 
-  //output
-  io.oReady <> DontCare
+  when(io.iRst && !ready){
+    collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
+    valid := false.B // reset valid when not sampling
+    ready := true.B //ready for next sampling process
+    io.oRand := 0.U // reset output when not sampling
+  }.otherwise{
+    when(tick && ready) {
+      shiftReg := rg_bit ## shiftReg(31, 1)
+      collectCnt := collectCnt + 1.U
+      when(collectCnt === 31.U) {
+        valid := true.B //valid read data
+        ready := false.B //not sampling, data is available to read
+        io.oRand := shiftReg //output data
+      }.otherwise{
+        valid := valid
+        ready := ready
+        io.oRand := 0.U
+      }
+    }.otherwise{
+      collectCnt := collectCnt
+      io.oRand := 0.U
+    }
+  }
+
+  io.oReady := ready
+  io.oValid := valid
+
+
+//  //32 counter - only counts when delay is finished
+//  val collectCnt = RegInit(0.U(5.W))
+//  when(io.iRst === 0.U) {
+//    collectCnt := 0.U
+//  }.elsewhen(tick.asBool) {
+//    collectCnt := collectCnt + 1.U
+//  }.otherwise {
+//    collectCnt := collectCnt
+//  }
+//  val overflow = (collectCnt === 32.U)
+//  io.oValid := overflow
+//
+//  //serial to parallel, with enable
+//  val outReg = RegInit(0.U(32.W))
+//  when(io.iEn){
+//    outReg := rg_bit ## outReg(31, 1)
+//  }
+//  io.oRand := outReg
+//
+//  //output
+//  io.oReady <> DontCare
 }
 
 
