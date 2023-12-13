@@ -1,119 +1,98 @@
-package riscvconsole.devices.custom
+package riscvconsole.devices.trng
 
 import chipsalliance.rocketchip.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
-import riscvconsole.devices.primitives._
 
 // hardware wrapper for Verilog file: module name & ports MUST MATCH the Verilog's
 
-//class TRNG extends BlackBox with HasBlackBoxResource {
-//  val io = IO(new Bundle{
-//    val iClk   = Input(Clock())
-//    val iRst   = Input(Bool())
-//    val iA     = Input(UInt(16.W))
-//    val iB     = Input(UInt(16.W))
-//    val iValid = Input(Bool())
-//    val oReady = Output(Bool())
-//    val oValid = Output(Bool())
-//    val oC     = Output(UInt(16.W))
-//  })
-//  addResource("GCD.v")
-//}
+class TRNGIO() extends Bundle {
+  val iClk = Input(Clock())
+  val iRst = Input(Bool())
+  val iEn = Input(Bool())
+  val iDelay = Input(UInt(16.W))
+  val oReady = Output(Bool())
+  val oValid = Output(Bool())
+  val oRand = Output(UInt(32.W))
+}
 
-class TRNG extends Module {
-  val io = IO(new Bundle {
-    val iClk   = Input(Clock())
-    val iRst   = Input(Bool())
-    val iEn    = Input(Bool())
-    val iDelay  = Input(UInt(16.W))
-    val oReady = Output(Bool())
-    val oValid = Output(Bool())
-    val oRand     = Output(UInt(32.W))
-  })
+trait hasTRNGIO {
+  this: Module =>
+  val io = IO(new TRNGIO())
+}
 
+class TRNG extends Module with hasTRNGIO {
 
   /* TODO: implement the core here */
+  var injectList = List(16, 19, 22, 25, 28)
+  var feedbackSrc = List(29, 26, 23, 20, 18)
+  var feedbackDst = List(2, 5, 7, 10, 13)
 
-}
+  val rg = Module(new RingGenerator(32, 5, injectList, feedbackSrc, feedbackDst, true))
+  val ro = Module(new RingOscillator(4, true))
 
+  //Default
+  val rg_inject = WireDefault(0.U(5.W))
+  val rg_enable = WireDefault(0.U(1.W))
+  val rg_bit    = WireDefault(0.U(1.W))
 
-class RingGenerator(flipFlops: Int, polynomial: String) extends Module {
-  val io = IO(new Bundle {
-    val out = Output(UInt(flipFlops.W))
-  })
+  val ro_enable = WireDefault(0.U(1.W))
+  val ro_out    = WireDefault(0.U(5.W))
 
-  val stateReg = RegInit(1.U(flipFlops.W))
+  rg_inject := ro_out
+  rg_enable := io.iEn
+  rg_bit := rg.io.o_bit
 
-  // Function to compute the feedback value based on the polynomial
-  def computeFeedback(state: UInt): UInt = {
-    val feedback = (0 until polynomial.length).map(i => {
-      val bit = state(i)
-      val polyBit = polynomial(i).asDigit.U
-      bit & polyBit
-    }).reduce(_ ^ _)
+  ro_enable := io.iEn
+  ro_out := ro.io.o_out
 
-    feedback
+  /* Pins */
+  rg.io.i_inject := rg_inject
+  rg.io.i_en := rg_enable
+
+  ro.io.i_en := rg_enable
+
+  //delay counter - initial wait time for calibration
+  val tick = RegInit(0.U(1.W))
+  val delayCnt = RegInit(0.U(16.W))
+  when(io.iRst === 0.U){
+    delayCnt := 0.U
+  }.elsewhen(tick.asBool){
+    delayCnt := 0.U
+  }.elsewhen(io.iEn){
+    delayCnt := delayCnt + 1.U
+  }.otherwise{
+    delayCnt := delayCnt
   }
+  tick := Mux((delayCnt === io.iDelay) & (tick =/= 1.U), 1.U, 0.U)
 
-  // Update the state register with the feedback value
-  val feedback = computeFeedback(stateReg)
-  stateReg := Cat(feedback, stateReg(flipFlops - 1, 1))
+  //32 counter - only counts when delay is finished
+  val collectCnt = RegInit(0.U(5.W))
+  when(io.iRst === 0.U) {
+    collectCnt := 0.U
+  }.elsewhen(tick.asBool) {
+    collectCnt := collectCnt + 1.U
+  }.otherwise {
+    collectCnt := collectCnt
+  }
+  val overflow = (collectCnt === 32.U)
+  io.oValid := overflow
 
-  io.out := stateReg
+  //serial to parallel, with enable
+  val outReg = RegInit(0.U(32.W))
+  when(io.iEn){
+    outReg := rg_bit ## outReg(31, 1)
+  }
+  io.oRand := outReg
+
+  //output
+  io.oReady <> DontCare
 }
-
-class ring_osc(val stage: Int = 4 /*number of inverters*/) extends Module {
-  val io = IO(new Bundle{
-    val i_en = Input(Bool())
-    val o_out = Output(UInt(5.W))
-  })
-
-  /* Generate elements */
-  /* This code essentially creates a vector "ro_invs" containting "stage" instances of the "xilinx_not" module
-  * and provides access to their IO ports for further connections or usage */
-
-  val ro_invs = VecInit(Seq.tabulate(stage){case i =>
-    val m = Module(new xilinx_not())
-    m.suggestName(s"not_gate_${i}")
-    m.io
-  })
-
-  val ro_nand = Module(new xilinx_nand())
-  ro_nand.suggestName(s"nand_gate")
-
-  /* Structure of the ring osc */
-  (0 until stage).map(i =>
-    if(i==0){
-      ro_nand.io.in1 := ro_invs(i).out
-    }
-
-  )
-
-
-}
-
-
-//object RingGeneratorMain extends App {
-//  val flipFlops = 8 // Number of flip-flops
-//  val polynomial = "100011101" // Polynomial function x^8 + x^4 + x^3 + x^2 + 1
-//
-//  chisel3.Driver.execute(args, () => new RingGenerator(flipFlops, polynomial))
-//}
-
-
-
-
 
 
 // declare params
@@ -123,7 +102,7 @@ case class TRNGParams(address: BigInt)
 object TRNGCtrlRegs {
   val control     = 0x00
   val status      = 0x04
-  val delay        = 0x08
+  val delay       = 0x08
   val random      = 0x0C
 }
 
@@ -142,8 +121,8 @@ abstract class TRNGmod(busWidthBytes: Int, c: TRNGParams)(implicit p: Parameters
 
     // declare inputs
     val rst    = RegInit(false.B)
-    val enable   = RegInit(false.B) //enable signal for RO
-    val delay = RegInit(UInt(32.W))
+    val enable = RegInit(false.B) //enable signal for RO
+    val delay  = RegInit(0.U(32.W))
     // mapping inputs
     mod.io.iClk   := clock
     mod.io.iRst   := reset.asBool || rst
@@ -183,7 +162,7 @@ abstract class TRNGmod(busWidthBytes: Int, c: TRNGParams)(implicit p: Parameters
 class TLTRNG(busWidthBytes: Int, params: TRNGParams)(implicit p: Parameters)
   extends TRNGmod(busWidthBytes, params) with HasTLControlRegMap
 
-// this will auto +1 ID if there are many GCD modules
+// this will auto +1 ID if there are many TRNG modules
 object TRNGID {
   val nextId = {
     var i = -1; () => {
@@ -201,15 +180,15 @@ case class TRNGAttachParams
   def attachTo(where: Attachable)(implicit p: Parameters): TLTRNG = where {
     val name = s"trng_${TRNGID.nextId()}"
     val cbus = where.locateTLBusWrapper(controlWhere)
-    val gcd = LazyModule(new TLTRNG(cbus.beatBytes, device))
-    gcd.suggestName(name)
+    val trng = LazyModule(new TLTRNG(cbus.beatBytes, device))
+    trng.suggestName(name)
 
     cbus.coupleTo(s"device_named_$name") { bus =>
-      (gcd.controlXing(NoCrossing)
+      (trng.controlXing(NoCrossing)
         := TLFragmenter(cbus)
         := bus )
     }
-    gcd
+    trng
   }
 }
 
