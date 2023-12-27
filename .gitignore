@@ -20,4 +20,9 @@ env-riscv-tools.sh
 env-esp-tools.sh
 generated-src
 .bsp
+fpga/.Xil/
+fpga/vivado.jou
+fpga/vivado_pid652770.str
+vivado.jou
+
 
