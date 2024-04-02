@@ -23,8 +23,10 @@ class RVCPeripheralsConfig(gpio: Int = 14) extends Config((site, here, up) => {
     sifive.blocks.devices.i2c.I2CParams(0x10003000))
   case sifive.blocks.devices.timer.PeripheryTimerKey => Seq(
     sifive.blocks.devices.timer.TimerParams(0x10004000))
-  case riscvconsole.devices.trng.PeripheryTRNGKey => Seq(
-    riscvconsole.devices.trng.TRNGParams(0x10005000))
+  // case riscvconsole.devices.trng.PeripheryTRNGKey => Seq(
+  //   riscvconsole.devices.trng.TRNGParams(0x10005000))
+  case riscvconsole.devices.entropy.PeripheryXORPUFKey => Seq(
+    riscvconsole.devices.entropy.XORPUFParams(0x10006000))
   //case sifive.blocks.devices.spi.PeripherySPIFlashKey => Seq(
   //  sifive.blocks.devices.spi.SPIFlashParams(0x10003000, 0x20000000L))
   case MaskROMLocated(InSubsystem) => Seq(

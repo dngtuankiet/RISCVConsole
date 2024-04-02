@@ -19,6 +19,7 @@ import riscvconsole.devices.sdram._
 import riscvconsole.devices.xilinx.artya7ddr._
 import riscvconsole.devices.xilinx.nexys4ddr._
 import riscvconsole.devices.trng._
+import riscvconsole.devices.entropy._
 import testchipip._
 
 case class SRAMConfig
@@ -29,6 +30,7 @@ case class SRAMConfig
 case object SRAMKey extends Field[Seq[SRAMConfig]](Nil)
 
 class RVCSystem(implicit p: Parameters) extends RVCSubsystem
+  with HasPeripheryXORPUF
   with HasPeripheryTRNG
   with HasPeripheryGPIO
   with HasPeripheryUART
