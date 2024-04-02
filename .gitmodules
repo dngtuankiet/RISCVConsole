@@ -12,5 +12,5 @@
 	url = https://github.com/uec-hanken/fpga-shells
 [submodule "software/RISCVConsoleCode"]
 	path = software/RISCVConsoleCode
-	url = https://github.com/dngtuankiet/RISCVConsoleCode.git
-	branch = dev
+	url = git@github.com:dngtuankiet/RISCVConsoleCode.git
+	branch = master
