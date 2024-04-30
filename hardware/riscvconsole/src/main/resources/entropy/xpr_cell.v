@@ -33,10 +33,10 @@ LUT5_L #(
    );
 
 //LUT 5 AND gate with inverted i0
-LUT5 #(
+LUT5_L #(
       .INIT(32'h00FF_0000)
-   ) LUT5_and_top (
-      .O(top_out),
+   ) LUT5_L_and_top (
+      .LO(top_out),
       //XOR
       .I0(), 
       .I1(), 
