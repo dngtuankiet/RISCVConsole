@@ -30,6 +30,7 @@ case class SRAMConfig
 case object SRAMKey extends Field[Seq[SRAMConfig]](Nil)
 
 class RVCSystem(implicit p: Parameters) extends RVCSubsystem
+  with HasPeripheryXPR
   with HasPeripheryXORPUF
   with HasPeripheryTRNG
   with HasPeripheryGPIO
