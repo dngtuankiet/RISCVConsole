@@ -36,20 +36,21 @@ class xpr_cell(useXDC: Boolean = false) extends BlackBox with HasBlackBoxResourc
 
                 val lockPin =
                     s"""
-                    |set_property LOCK_PINS
-                    """
+                    |set_property LOCK_PINS "I0:A4" [get_cells LUT5_L_and_top]
+                    |set_property LOCK_PINS "I0:A4" [get_cells LUT5_L_and_bot]
+                    """.stripMargin
 
                 val placement =
                     s"""
-                    |set_property BEL C5LUT [get_cells ${xdcPath}LUT5_and_top]
-                    |set_property LOC SLICE_X0Y162 [get_cells ${xdcPath}LUT5_and_top]
+                    |set_property BEL C5LUT [get_cells ${xdcPath}LUT5_L_and_top]
+                    |set_property LOC SLICE_X0Y4 [get_cells ${xdcPath}LUT5_L_and_top]
                     |set_property BEL C6LUT [get_cells ${xdcPath}LUT5_L_xor_top]
-                    |set_property LOC SLICE_X0Y162 [get_cells ${xdcPath}LUT5_L_xor_top]
+                    |set_property LOC SLICE_X0Y4 [get_cells ${xdcPath}LUT5_L_xor_top]
                     |
                     |set_property BEL B5LUT [get_cells ${xdcPath}LUT5_L_and_bot]
-                    |set_property LOC SLICE_X0Y162 [get_cells ${xdcPath}LUT5_L_and_bot]
+                    |set_property LOC SLICE_X0Y4 [get_cells ${xdcPath}LUT5_L_and_bot]
                     |set_property BEL B6LUT [get_cells ${xdcPath}LUT5_L_xor_bot]
-                    |set_property LOC SLICE_X0Y162 [get_cells ${xdcPath}LUT5_L_xor_bot]
+                    |set_property LOC SLICE_X0Y4 [get_cells ${xdcPath}LUT5_L_xor_bot]
                     """.stripMargin
 
                 val loop =
@@ -57,7 +58,7 @@ class xpr_cell(useXDC: Boolean = false) extends BlackBox with HasBlackBoxResourc
                     |set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets ${xdcPath}top_xor]
                     |set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets ${xdcPath}bot_xor]
                     |set_property ALLOW_COMBINATORIAL_LOOPS true [get_cells ${xdcPath}LUT5_L_xor_top]
-                    |set_property ALLOW_COMBINATORIAL_LOOPS true [get_cells ${xdcPath}LUT5_and_top]
+                    |set_property ALLOW_COMBINATORIAL_LOOPS true [get_cells ${xdcPath}LUT5_L_and_top]
                     |set_property ALLOW_COMBINATORIAL_LOOPS true [get_cells ${xdcPath}LUT5_L_xor_bot]
                     |set_property ALLOW_COMBINATORIAL_LOOPS true [get_cells ${xdcPath}LUT5_L_and_bot]
                     |""".stripMargin
@@ -66,7 +67,7 @@ class xpr_cell(useXDC: Boolean = false) extends BlackBox with HasBlackBoxResourc
                     |create_clock -period 10.000 -name puf_out -waveform {0.000 5.000} -add [get_ports ${xdcPath}out]
                     """.stripMargin
 
-                placement + loop + clock
+                placement + lockPin + loop
             }
         )//ElaborationArtefacts
     }
