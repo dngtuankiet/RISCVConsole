@@ -24,5 +24,5 @@ fpga/.Xil/
 fpga/vivado.jou
 fpga/vivado_pid652770.str
 vivado.jou
-
-
+*.jou
+.idea/
