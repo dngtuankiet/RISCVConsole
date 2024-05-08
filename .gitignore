@@ -26,3 +26,6 @@ fpga/vivado_pid652770.str
 vivado.jou
 *.jou
 .idea/
+.metals/
+.vscode/
+cs
