@@ -51,20 +51,35 @@ class XPR(val size: Int = 16) extends Module{
         Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
     )
 
+    val ir = Wire()
+    val i1 = Wire()
+    val i2 = Wire()
+    ir := io.iR
+    i1 := io.i1
+    i2 := io.i2
 
-    (0 until xpr_slice.size).foreach { i =>
-        xpr_slice(i).io.iR := io.iR
-        xpr_slice(i).io.i1 := io.i1
-        xpr_slice(i).io.i2 := io.i2
-    }
+    // (0 until xpr_slice.size).foreach { i =>
+    //     xpr_slice(i).io.iR := io.iR
+    //     xpr_slice(i).io.i1 := io.i1
+    //     xpr_slice(i).io.i2 := io.i2
+    // }
 
-    // xpr_base.io.iEntropy(0) := xpr_slice.io.out1
-    // xpr_base.io.iEntropy(1) := xpr_slice.io.out2
-    // xpr_base.io.iEntropy(2) := xpr_slice.io.out1
-    // xpr_base.io.iEntropy(3) := xpr_slice.io.out2
-    xpr_base.io.iEntropy.zip(xpr_slice.map(_.io.out1) ++ xpr_slice.map(_.io.out2)).foreach { case (input, output) =>
-      input := output
-    }
+    xpr_slice(0).io.iR := ir
+    xpr_slice(0).io.i1 := i1
+    xpr_slice(0).io.i2 := i2
+    xpr_slice(1).io.iR := iR
+    xpr_slice(1).io.i1 := i1
+    xpr_slice(1).io.i2 := i2
+
+
+    // xpr_base.io.iEntropy.zip(xpr_slice.map(_.io.out1) ++ xpr_slice.map(_.io.out2)).foreach { case (input, output) =>
+    //   input := output
+    // }
+
+    xpr_base.io.iEntropy(0) := xpr_slice(0).io.out1
+    xpr_base.io.iEntropy(1) := xpr_slice(0).io.out2
+    xpr_base.io.iEntropy(2) := xpr_slice(1).io.out1
+    xpr_base.io.iEntropy(3) := xpr_slice(1).io.out2
 
     //delay counter - initial wait time for calibration
     val tick = RegInit(false.B)
