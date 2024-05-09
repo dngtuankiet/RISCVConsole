@@ -42,6 +42,8 @@ class XPR(val size: Int = 16) extends Module{
     xpr_base.io.iEn := io.iEn //TODO: use FSM to inject seed later
     xpr_base.io.iInit := false.B //TODO: use FSM to inject seed later
     xpr_base.io.iBit := false.B //TODO: use FSM to inject seed later
+    val bit = WireDefault(0.U(1.W))
+    bit := xpr_base.io.oSerial
 
     //XPR
     val x = 0
@@ -51,9 +53,9 @@ class XPR(val size: Int = 16) extends Module{
         Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
     )
 
-    val ir = Wire()
-    val i1 = Wire()
-    val i2 = Wire()
+    val ir = WireDefault(0.U(1.W))
+    val i1 = WireDefault(0.U(1.W))
+    val i2 = WireDefault(0.U(1.W))
     ir := io.iR
     i1 := io.i1
     i2 := io.i2
@@ -107,7 +109,7 @@ class XPR(val size: Int = 16) extends Module{
         valid := false.B // reset valid when not sampling
     }.otherwise{
         when(tick && !valid) {
-            shiftReg := Cat(xpr_base.io.oSerial, shiftReg(31, 1))
+            shiftReg := bit ## shiftReg(31, 1)
             collectCnt := collectCnt + 1.U
             valid := collectCnt === 31.U //valid read data when counter reaches 31
         }
