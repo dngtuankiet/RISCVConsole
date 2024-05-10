@@ -51,6 +51,10 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
                     case Some(tap) => state(i-1) := state(tap._2) ^ state(i)
                     case None => state(i-1) := state(i)
                 }
+                entropies.get(i) match {
+                    case Some(etp) => state(i-1) := state(i) ^ etp
+                    case None =>
+                }
             }
 
             // Inject state from last register

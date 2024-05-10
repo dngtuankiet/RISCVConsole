@@ -33,7 +33,11 @@ class XPR(val size: Int = 16) extends Module{
     //Ring Generator Base
     val poly = Seq(10,7,4)
     val src = Seq(3,4,6)
-    val entropy = Seq(7,5,2,1)
+
+    //Config settings
+    //Default  val entropy = Seq(15,12,7,5)
+    //Test#2   val entropy = Seq(15,12,7,5)
+    val entropy = Seq(15,7)
     val baseLocHint = new baseLocHint
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
@@ -60,28 +64,15 @@ class XPR(val size: Int = 16) extends Module{
     i1 := io.i1
     i2 := io.i2
 
-    // (0 until xpr_slice.size).foreach { i =>
-    //     xpr_slice(i).io.iR := io.iR
-    //     xpr_slice(i).io.i1 := io.i1
-    //     xpr_slice(i).io.i2 := io.i2
-    // }
+    (0 until xpr_slice.size).foreach { i =>
+        xpr_slice(i).io.iR := io.iR
+        xpr_slice(i).io.i1 := io.i1
+        xpr_slice(i).io.i2 := io.i2
+    }
 
-    xpr_slice(0).io.iR := ir
-    xpr_slice(0).io.i1 := i1
-    xpr_slice(0).io.i2 := i2
-    xpr_slice(1).io.iR := iR
-    xpr_slice(1).io.i1 := i1
-    xpr_slice(1).io.i2 := i2
-
-
-    // xpr_base.io.iEntropy.zip(xpr_slice.map(_.io.out1) ++ xpr_slice.map(_.io.out2)).foreach { case (input, output) =>
-    //   input := output
-    // }
-
-    xpr_base.io.iEntropy(0) := xpr_slice(0).io.out1
-    xpr_base.io.iEntropy(1) := xpr_slice(0).io.out2
-    xpr_base.io.iEntropy(2) := xpr_slice(1).io.out1
-    xpr_base.io.iEntropy(3) := xpr_slice(1).io.out2
+    xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
+      input := output
+    }
 
     //delay counter - initial wait time for calibration
     val tick = RegInit(false.B)
