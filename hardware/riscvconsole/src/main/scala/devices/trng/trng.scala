@@ -29,12 +29,20 @@ trait hasTRNGIO {
 class TRNG extends Module with hasTRNGIO {
 
   /* TODO: implement the core here */
-  var injectList = List(16, 19, 22, 25, 28)
-  var feedbackSrc = List(29, 26, 23, 20, 18)
-  var feedbackDst = List(2, 5, 7, 10, 13)
+  // var injectList = List(16, 19, 22, 25, 28)
+  // var feedbackSrc = List(29, 26, 23, 20, 18)
+  // var feedbackDst = List(2, 5, 7, 10, 13)
 
-  val rg = Module(new RingGenerator(32, 5, injectList, feedbackSrc, feedbackDst, true))
-  val ro = Module(new RingOscillator(4, true))
+  // val rg = Module(new RingGenerator(32, 5, injectList, feedbackSrc, feedbackDst, true))
+  // val ro = Module(new RingOscillator(4, true))
+
+
+  val injectList = List(8,10,13)
+  val feedbackSrc = List(12,11,9)
+  val feedbackDst = List(2,4,5)
+
+  val rg = Module(new RingGenerator(16, 3, injectList, feedbackSrc, feedbackDst, true))
+  val ro = Module(new RingOscillator(2, true))
 
   //Default
   val rg_bit    = WireDefault(0.U(1.W))

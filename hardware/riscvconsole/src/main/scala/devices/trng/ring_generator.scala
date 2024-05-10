@@ -35,7 +35,7 @@ class RingGenerator(val stage: Int = 32, val InjectNum: Int = 5, val injectList:
   stateReg := stateReg
   when(io.i_en){
     stateReg(1) := stateReg(0)
-    stateReg(0) := stateReg(31)
+    stateReg(0) := stateReg(stage-1)
     for (i <- 1 until (stage - 1)) {
       if ((injectNext < injectList.length) && (i == injectList(injectNext))) {
         stateReg(i + 1) := stateReg(i) ^ io.i_inject(injectNext)
@@ -53,7 +53,7 @@ class RingGenerator(val stage: Int = 32, val InjectNum: Int = 5, val injectList:
     }
   }
 
-  io.o_bit := stateReg(31)
+  io.o_bit := stateReg(stage-1)
 //  when(io.i_en){
 //    io.o_bit := stateReg(31)
 //  }.otherwise(
@@ -82,7 +82,7 @@ class RingGenerator(val stage: Int = 32, val InjectNum: Int = 5, val injectList:
         }).reduce(_+_)
 
         val extra =
-          s"""set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets ${xdcPath}/stateReg_fdre_31/inst/FDRE_inst/Q]
+          s"""set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets ${xdcPath}/stateReg_fdre_${stage-1}/inst/FDRE_inst/Q]
              |set_property SEVERITY {Warning} [get_drc_checks LUTLP-1]
              |set_property SEVERITY {Warning} [get_drc_checks NSTD-1]
              |""".stripMargin
