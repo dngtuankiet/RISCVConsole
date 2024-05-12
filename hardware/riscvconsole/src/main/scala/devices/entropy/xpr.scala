@@ -35,9 +35,10 @@ class XPR(val size: Int = 16) extends Module{
     val src = Seq(3,4,6)
 
     //Config settings
-    //Default  val entropy = Seq(15,12,7,5)
-    //Test#2   val entropy = Seq(15,12,7,5)
-    val entropy = Seq(15,7)
+    // val entropy = Seq(15,12,7,5) //Default  
+    // val entropy = Seq(15,12,7,5) //Test#2 - evenly distribute injections
+    // val entropy = Seq(15,7) //Test#1 - only two injections
+    val entropy = Seq(7,5,2) //Test#3
     val baseLocHint = new baseLocHint
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
