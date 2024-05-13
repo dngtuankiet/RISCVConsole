@@ -39,7 +39,7 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
             val entropies = entropy.zip(io.iEntropy).toMap
             (0 until size/2).reverse.foreach { i =>
                 entropies.get(i+1) match {
-                    case Some(etp) => state(i) := state(i+1) | etp
+                    case Some(etp) => state(i) := state(i+1) ^ etp
                     case None => state(i) := state(i+1)
                 }
             }
@@ -52,7 +52,7 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
                     case None => state(i-1) := state(i)
                 }
                 entropies.get(i) match {
-                    case Some(etp) => state(i-1) := state(i) | etp
+                    case Some(etp) => state(i-1) := state(i) ^ etp
                     case None =>
                 }
             }

@@ -38,7 +38,9 @@ class XPR(val size: Int = 16) extends Module{
     // val entropy = Seq(15,12,7,5) //Default  
     // val entropy = Seq(15,12,7,5) //Test#2 - evenly distribute injections
     // val entropy = Seq(15,7) //Test#1 - only two injections
-    val entropy = Seq(7,5,2) //Test#3
+    // val entropy = Seq(7,5,2) //Test#3
+    // val entropy = Seq(7) //Test#4 > Test#3 > Test#2 & Test#1
+    val entropy = Seq(7,5) //Test#5
     val baseLocHint = new baseLocHint
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
@@ -58,22 +60,27 @@ class XPR(val size: Int = 16) extends Module{
         Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
     )
 
-    val ir = WireDefault(0.U(1.W))
-    val i1 = WireDefault(0.U(1.W))
-    val i2 = WireDefault(0.U(1.W))
-    ir := io.iR
-    i1 := io.i1
-    i2 := io.i2
-
     (0 until xpr_slice.size).foreach { i =>
         xpr_slice(i).io.iR := io.iR
         xpr_slice(i).io.i1 := io.i1
         xpr_slice(i).io.i2 := io.i2
     }
-
-    xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
+    
+    val w_not0 = ~xpr_slice(0).io.out1
+    val w_not1 = ~w_not0
+    val entropy_src = Cat(xpr_slice(0).io.out1, w_not0, w_not1)
+    xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
       input := output
     }
+
+    // val entropy_src = Cat(xpr_slice(0).io.out1, ~xpr_slice(0).io.out1)
+    // xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
+    //   input := output
+    // }
+
+    // xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
+    //   input := output
+    // }
 
     //delay counter - initial wait time for calibration
     val tick = RegInit(false.B)
@@ -135,7 +142,7 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
 {
   lazy val module = new LazyModuleImp(this) {
     // HW instantiation
-    val mod = Module(new XPR(16))
+    val mod = Module(new XPR())
 
     // declare inputs
     val ir     = RegInit(false.B)
