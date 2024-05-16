@@ -40,7 +40,12 @@ class XPR(val size: Int = 16) extends Module{
     // val entropy = Seq(15,7) //Test#1 - only two injections
     // val entropy = Seq(7,5,2) //Test#3
     // val entropy = Seq(7) //Test#4 > Test#3 > Test#2 & Test#1
-    val entropy = Seq(7,5) //Test#5
+    // val entropy = Seq(7,5) //Test#5 - with only 1 EC
+    // val entropy = Seq(7,5,2) //Test#6 - with only 1 EC
+    // val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
+    // val entropy = Seq(7) //Test#8 - fixed placement of base, including all xor gate
+    // val entropy = Seq(7,5,2) //Test#9 - fixed placement of base, including all xor gate, 1 EC for all etp
+    val entropy = Seq(15,12,7,5) //Test#10 - fixed placement of base, including all xor gate, 2 EC
     val baseLocHint = new baseLocHint
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
@@ -53,10 +58,13 @@ class XPR(val size: Int = 16) extends Module{
     bit := xpr_base.io.oSerial
 
     //XPR
-    val x = 0
-    val y = 121
-    val sliceLocHints = Seq.tabulate(2)(i => new sliceLocHint(x+i, y))
-    val xpr_slice = Seq.tabulate(2)(i =>
+    // val x = 0
+    // val y = 121
+    val x = 28
+    val y = 149
+    val slice_num = 2
+    val sliceLocHints = Seq.tabulate(slice_num)(i => new sliceLocHint(x+i, y))
+    val xpr_slice = Seq.tabulate(slice_num)(i =>
         Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
     )
 
@@ -66,18 +74,27 @@ class XPR(val size: Int = 16) extends Module{
         xpr_slice(i).io.i2 := io.i2
     }
     
-    val w_not0 = ~xpr_slice(0).io.out1
-    val w_not1 = ~w_not0
-    val entropy_src = Cat(xpr_slice(0).io.out1, w_not0, w_not1)
+    // 1 EC source - 3 entropies - one for all
+    val entropy_src = Cat(xpr_slice(0).io.out1, xpr_slice(0).io.out1, xpr_slice(0).io.out1)
     xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
       input := output
     }
 
+    // 1 EC source - 3 entropies - with inverter
+    // val w_not0 = ~xpr_slice(0).io.out1
+    // val w_not1 = ~w_not0
+    // val entropy_src = Cat(xpr_slice(0).io.out1, w_not0, w_not1) //force w_not1 to use another inverter
+    // xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
+    //   input := output
+    // }
+
+    // 1 EC source - 2 entropies
     // val entropy_src = Cat(xpr_slice(0).io.out1, ~xpr_slice(0).io.out1)
     // xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
     //   input := output
     // }
 
+    // // auto route multiple ECs
     // xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
     //   input := output
     // }
