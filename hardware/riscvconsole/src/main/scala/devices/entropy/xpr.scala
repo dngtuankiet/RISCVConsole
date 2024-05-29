@@ -11,12 +11,12 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.ElaborationArtefacts
 import riscvconsole.devices.entropy._
 
-class XPR(val size: Int = 16) extends Module{
+class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
     val io = IO(new Bundle{
         //for XPRSlice
-        val iR = Input(Bool())
-        val i1 = Input(Bool())
-        val i2 = Input(Bool())
+        val iR = Vec(xpr_slices_num, Input(Bool()))
+        val i1 = Vec(xpr_slices_num, Input(Bool()))
+        val i2 = Vec(xpr_slices_num, Input(Bool()))
         //for base
         val iRst = Input(Bool())
         val iEn = Input(Bool())
@@ -30,26 +30,39 @@ class XPR(val size: Int = 16) extends Module{
         val oValue = Output(UInt(32.W))
     })
 
-    //Ring Generator Base
+    //-----Ring Generator Base polynomial-----
+    // x^16 + x^10 + x^7 + x^4 + 1
     val poly = Seq(10,7,4)
     val src = Seq(3,4,6)
 
-    //Config settings
-    // val entropy = Seq(15,12,7,5) //Default  
-    // val entropy = Seq(15,12,7,5) //Test#2 - evenly distribute injections
-    // val entropy = Seq(15,7) //Test#1 - only two injections
-    // val entropy = Seq(7,5,2) //Test#3
-    // val entropy = Seq(7) //Test#4 > Test#3 > Test#2 & Test#1
-    // val entropy = Seq(7,5) //Test#5 - with only 1 EC
-    // val entropy = Seq(7,5,2) //Test#6 - with only 1 EC
-    // val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
-    // val entropy = Seq(7) //Test#8 - fixed placement of base, including all xor gate
-    // val entropy = Seq(7,5,2) //Test#9 - fixed placement of base, including all xor gate, 1 EC for all etp
-    val entropy = Seq(15,12,7,5) //Test#10 - fixed placement of base, including all xor gate, 2 EC
-    val baseLocHint = new baseLocHint
+    //-----Config settings-----
+
+    //Ring Generator base
+    val entropy = Seq(15,14,12,9,7,5,2,1) //Full entropy sources for poly x^16 + x^10 + x^7 + x^4 + 1
+    val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149)
+
+    //XPRSlice
+    val x = 28
+    val y = 149
+    val sliceLocHints = Seq.tabulate(xpr_slices_num)(i => {
+      val newX = if (i % 2 == 1) x + 1 else x
+      val rows = i / 2
+      val newY = y - rows
+      new sliceLocHint(newX, newY)
+    })
+
+
+    //-----Instantiate modules-----
+    //Ring Generator Base
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
-    //xpr_base control
+    //XPR
+    val xpr_slice = Seq.tabulate(xpr_slices_num)(i =>
+        Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
+    )
+
+    //-----Connect modules-----
+    //Ring Generator Base
     xpr_base.io.iRst := io.iRst
     xpr_base.io.iEn := io.iEn //TODO: use FSM to inject seed later
     xpr_base.io.iInit := false.B //TODO: use FSM to inject seed later
@@ -58,47 +71,18 @@ class XPR(val size: Int = 16) extends Module{
     bit := xpr_base.io.oSerial
 
     //XPR
-    // val x = 0
-    // val y = 121
-    val x = 28
-    val y = 149
-    val slice_num = 2
-    val sliceLocHints = Seq.tabulate(slice_num)(i => new sliceLocHint(x+i, y))
-    val xpr_slice = Seq.tabulate(slice_num)(i =>
-        Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
-    )
-
-    (0 until xpr_slice.size).foreach { i =>
-        xpr_slice(i).io.iR := io.iR
-        xpr_slice(i).io.i1 := io.i1
-        xpr_slice(i).io.i2 := io.i2
+    (0 until xpr_slices_num).foreach { i =>
+        xpr_slice(i).io.iR := io.iR(i)
+        xpr_slice(i).io.i1 := io.i1(i)
+        xpr_slice(i).io.i2 := io.i2(i)
     }
-    
-    // 1 EC source - 3 entropies - one for all
-    val entropy_src = Cat(xpr_slice(0).io.out1, xpr_slice(0).io.out1, xpr_slice(0).io.out1)
-    xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
+  
+    // auto route multiple ECs
+    xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
       input := output
     }
 
-    // 1 EC source - 3 entropies - with inverter
-    // val w_not0 = ~xpr_slice(0).io.out1
-    // val w_not1 = ~w_not0
-    // val entropy_src = Cat(xpr_slice(0).io.out1, w_not0, w_not1) //force w_not1 to use another inverter
-    // xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
-    //   input := output
-    // }
-
-    // 1 EC source - 2 entropies
-    // val entropy_src = Cat(xpr_slice(0).io.out1, ~xpr_slice(0).io.out1)
-    // xpr_base.io.iEntropy.zip(entropy_src.asBools).foreach { case (input, output) =>
-    //   input := output
-    // }
-
-    // // auto route multiple ECs
-    // xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
-    //   input := output
-    // }
-
+    //-----Control FSM-----
     //delay counter - initial wait time for calibration
     val tick = RegInit(false.B)
     val delayCnt = RegInit(0.U(32.W))
@@ -138,6 +122,11 @@ class XPR(val size: Int = 16) extends Module{
     //Control FSM to initialize challenge and read outputs
 }
 
+
+
+
+
+
 case class XPRParams(address: BigInt)
 
 // declare register-map structure
@@ -146,6 +135,9 @@ object XPRCtrlRegs {
   val status      = 0x04
   val delay       = 0x08
   val random      = 0x0C
+  val ctrl_ir     = 0x10
+  val ctrl_i1     = 0x14
+  val ctrl_i2     = 0x18
 }
 
 // mapping between HW ports and register-map
@@ -159,20 +151,27 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
 {
   lazy val module = new LazyModuleImp(this) {
     // HW instantiation
-    val mod = Module(new XPR())
+    val xpr_size = 16
+    val xpr_slices = 4
+    val mod = Module(new XPR(size = xpr_size, xpr_slices_num = xpr_slices))
 
     // declare inputs
-    val ir     = RegInit(false.B)
-    val i1     = RegInit(false.B)
-    val i2     = RegInit(false.B)
+    val ir     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
+    val i1     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
+    val i2     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
     val rst    = RegInit(false.B)
     val enable = RegInit(false.B)
     val next   = RegInit(false.B)
     val delay  = RegInit(0.U(32.W))
     // mapping inputs
-    mod.io.iR := ir
-    mod.io.i1 := i1
-    mod.io.i2 := i2
+    for (i <- 0 until xpr_slices) {
+      mod.io.iR(i) := ir(i)
+      mod.io.i1(i) := i1(i)
+      mod.io.i2(i) := i2(i)
+    }
+    // mod.io.iR := ir
+    // mod.io.i1 := i1
+    // mod.io.i2 := i2
     mod.io.iRst   := reset.asBool || rst
     mod.io.iEn    := enable
     mod.io.iNext  := next
@@ -189,20 +188,26 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
     // map inputs & outputs to register positions
     val mapping = Seq(
       XPRCtrlRegs.control -> Seq(
-        RegField(1, enable, RegFieldDesc("trigger", "XPR enable")),
-        RegField(1, next, RegFieldDesc("trigger", "XPR next")),
-        RegField(1),
-        RegField(1, ir, RegFieldDesc("trigger", "XPR iR")),
-        RegField(1, i1, RegFieldDesc("trigger", "XPR i1")),
-        RegField(1, i2, RegFieldDesc("trigger", "XPR i2")),
-        RegField(2),
-        RegField(1, rst, RegFieldDesc("rst", "XPR reset", reset = Some(0)))
+      RegField(1, enable, RegFieldDesc("trigger", "XPR enable")),
+      RegField(1, next, RegFieldDesc("trigger", "XPR next")),
+      RegField(1),
+      RegField(5),
+      RegField(1, rst, RegFieldDesc("rst", "XPR reset", reset = Some(0)))
       ),
       XPRCtrlRegs.status -> Seq(
-        RegField.r(1, valid, RegFieldDesc("valid", "XPR data valid", volatile = true))
+      RegField.r(1, valid, RegFieldDesc("valid", "XPR data valid", volatile = true))
       ),
       XPRCtrlRegs.delay -> Seq(RegField(32, delay, RegFieldDesc("delay", "delay time for calibrartion XPR"))),
       XPRCtrlRegs.random -> Seq(RegField.r(32, value, RegFieldDesc("output", "output for XPR", volatile = true))),
+      XPRCtrlRegs.ctrl_ir -> Seq.tabulate(xpr_slices) { i =>
+        RegField(1, ir(i), RegFieldDesc("ctrl_ir", s"control ir $i for XPR"))
+      },
+      XPRCtrlRegs.ctrl_i1 -> Seq.tabulate(xpr_slices) { i =>
+        RegField(1, i1(i), RegFieldDesc("ctrl_i1", s"control i1 $i for XPR"))
+      },
+      XPRCtrlRegs.ctrl_i2 -> Seq.tabulate(xpr_slices) { i =>
+        RegField(1, i2(i), RegFieldDesc("ctrl_i2", s"control i2 $i for XPR"))
+      }
     )
     regmap(mapping :_*)
     val omRegMap = OMRegister.convert(mapping:_*)
