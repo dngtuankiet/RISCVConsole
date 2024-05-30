@@ -11,7 +11,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.ElaborationArtefacts
 import riscvconsole.devices.entropy._
 
-class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
+class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     val io = IO(new Bundle{
         //for XPRSlice
         val iR = Vec(xpr_slices_num, Input(Bool()))
@@ -32,13 +32,17 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
 
     //-----Ring Generator Base polynomial-----
     // x^16 + x^10 + x^7 + x^4 + 1
-    val poly = Seq(10,7,4)
-    val src = Seq(3,4,6)
+    // val poly = Seq(10,7,4)
+    // val src = Seq(3,4,6)
+    // x^32 + x^25 + x^15 + x^7 + 1
+    val poly = Seq(25,15,7)
+    val src = Seq(3,8,12)
 
     //-----Config settings-----
 
     //Ring Generator base
-    val entropy = Seq(15,14,12,9,7,5,2,1) //Full entropy sources for poly x^16 + x^10 + x^7 + x^4 + 1
+    // val entropy = Seq(15,14,12,9,7,5,2,1) //Full entropy sources for poly x^16 + x^10 + x^7 + x^4 + 1
+    val entropy = Seq(31,30,29,27,26,25,24,22,21,20,18,17,15,14,13,11,10,9,7,6,5,4,2,1) //Full entropy sources for poly x^32 + x^25 + x^15 + x^7 + 1
     val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149)
 
     //XPRSlice
@@ -151,8 +155,8 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
 {
   lazy val module = new LazyModuleImp(this) {
     // HW instantiation
-    val xpr_size = 16
-    val xpr_slices = 4
+    val xpr_size = 32
+    val xpr_slices = 12
     val mod = Module(new XPR(size = xpr_size, xpr_slices_num = xpr_slices))
 
     // declare inputs

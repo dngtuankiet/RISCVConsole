@@ -25,9 +25,9 @@ class RVCPeripheralsConfig(gpio: Int = 14) extends Config((site, here, up) => {
     sifive.blocks.devices.timer.TimerParams(0x10004000))
   // case riscvconsole.devices.trng.PeripheryTRNGKey => Seq(
   //   riscvconsole.devices.trng.TRNGParams(0x10005000))
-  case riscvconsole.devices.entropy.PeripheryXORPUFKey => Seq(
-    riscvconsole.devices.entropy.XORPUFParams(0x10006000))
-    case riscvconsole.devices.entropy.PeripheryXPRKey => Seq(
+  // case riscvconsole.devices.entropy.PeripheryXORPUFKey => Seq(
+  //   riscvconsole.devices.entropy.XORPUFParams(0x10006000))
+  case riscvconsole.devices.entropy.PeripheryXPRKey => Seq(
     riscvconsole.devices.entropy.XPRParams(0x10007000))
   //case sifive.blocks.devices.spi.PeripherySPIFlashKey => Seq(
   //  sifive.blocks.devices.spi.SPIFlashParams(0x10003000, 0x20000000L))
