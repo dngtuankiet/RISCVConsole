@@ -43,11 +43,18 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     //Ring Generator base
     // val entropy = Seq(15,14,12,9,7,5,2,1) //Full entropy sources for poly x^16 + x^10 + x^7 + x^4 + 1
     val entropy = Seq(31,30,29,27,26,25,24,22,21,20,18,17,15,14,13,11,10,9,7,6,5,4,2,1) //Full entropy sources for poly x^32 + x^25 + x^15 + x^7 + 1
-    val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149)
+    // val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149) //mid 1
+    // val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 199) //top left
+    val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 12) //bot left
 
     //XPRSlice
-    val x = 28
-    val y = 149
+    // val x = 28  //mid 1
+    // val y = 149 //mid 1
+    // val x = 0   //top left
+    // val y = 199 //top left
+    val x = 0 //bot left
+    val y = 12 //bot left
+
     val sliceLocHints = Seq.tabulate(xpr_slices_num)(i => {
       val newX = if (i % 2 == 1) x + 1 else x
       val rows = i / 2
