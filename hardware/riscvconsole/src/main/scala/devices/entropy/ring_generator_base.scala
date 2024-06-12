@@ -150,63 +150,65 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
     var FDRE_name = List("D5FF", "DFF","C5FF", "CFF","B5FF", "BFF","A5FF", "AFF")
     var LUT_name = List("D6LUT", "C6LUT", "B6LUT", "A6LUT")
 
-    ElaborationArtefacts.add(
-        "ring_generator_base" + ".vivado.xdc",
-        {
-            val xdcPath = pathName.split("\\.").drop(1).mkString("/")+"/"
-            println(s"Test ring gennerator base in ${pathName} <> ${xdcPath}")
+    // ElaborationArtefacts.add(
+    //     "ring_generator_base" + ".vivado.xdc",
+    //     {
+    //         val xdcPath = pathName.split("\\.").drop(1).mkString("/")+"/"
+    //         println(s"Test ring gennerator base in ${pathName} <> ${xdcPath}")
 
-            val variations =(for (i <- 0 until (size/8)) yield {
-            (for(j <- 0 until 8) yield{
-              s"""set_property LOC SLICE_X${locHint.loc_x}Y${locHint.loc_y-i} [get_cells ${xdcPath}state_${i*8+j}_reg]
-                 |set_property DONT_TOUCH true [get_cells ${xdcPath}state_${i*8+j}_reg]
-                 |set_property BEL ${FDRE_name(j)} [get_cells ${xdcPath}state_${i*8+j}_reg]
-                 |""".stripMargin
-                }).reduce(_+_)
-            }).reduce(_+_)
+    //         val variations =(for (i <- 0 until (size/8)) yield {
+    //         (for(j <- 0 until 8) yield{
+    //           s"""set_property LOC SLICE_X${locHint.loc_x}Y${locHint.loc_y-i} [get_cells ${xdcPath}state_${i*8+j}_reg]
+    //              |set_property DONT_TOUCH true [get_cells ${xdcPath}state_${i*8+j}_reg]
+    //              |set_property BEL ${FDRE_name(j)} [get_cells ${xdcPath}state_${i*8+j}_reg]
+    //              |""".stripMargin
+    //             }).reduce(_+_)
+    //         }).reduce(_+_)
 
-            var poly_offset = (poly.length/4).toInt + 1
-            val xor_poly = poly.zipWithIndex.map { case (_, i) =>
-            //   val index = i
-              val LUT_index = i % 4
-              val LUT_inst = s"${xdcPath}xor_poly_xp_${i}/inst/LUT6_inst"
-              s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i/4} [get_cells $LUT_inst]
-                 |set_property DONT_TOUCH true [get_cells $LUT_inst]
-                 |set_property BEL ${LUT_name(LUT_index)} [get_cells $LUT_inst]
-                 |""".stripMargin
-            }.mkString("\n")
+    //         var poly_offset = (poly.length/4).toInt + 1
+    //         val xor_poly = poly.zipWithIndex.map { case (_, i) =>
+    //         //   val index = i
+    //           val LUT_index = i % 4
+    //           val LUT_inst = s"${xdcPath}xor_poly_xp_${i}/inst/LUT6_inst"
+    //           s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i/4} [get_cells $LUT_inst]
+    //              |set_property DONT_TOUCH true [get_cells $LUT_inst]
+    //              |set_property BEL ${LUT_name(LUT_index)} [get_cells $LUT_inst]
+    //              |""".stripMargin
+    //         }.mkString("\n")
 
-            val xor_etp = entropy.zipWithIndex.map { case (_, i) =>
-            //   val index = i
-              val LUT_index = i % 4
-              val LUT_inst = s"${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst"
-              s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i/4-poly_offset} [get_cells $LUT_inst]
-                 |set_property DONT_TOUCH true [get_cells $LUT_inst]
-                 |set_property BEL ${LUT_name(LUT_index)} [get_cells $LUT_inst]
-                 |""".stripMargin
-            }.mkString("\n")
+    //         val xor_etp = entropy.zipWithIndex.map { case (_, i) =>
+    //         //   val index = i
+    //           val LUT_index = i % 4
+    //           val LUT_inst = s"${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst"
+    //           s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i/4-poly_offset} [get_cells $LUT_inst]
+    //              |set_property DONT_TOUCH true [get_cells $LUT_inst]
+    //              |set_property BEL ${LUT_name(LUT_index)} [get_cells $LUT_inst]
+    //              |""".stripMargin
+    //         }.mkString("\n")
 
-            // // var LUT_sel = 0
-            // val xor_etp = (for (i <- 0 until entropy.length) yield {
-            //   s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i-poly_offset} [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
-            //      |set_property DONT_TOUCH true [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
-            //      |set_property BEL ${LUT_name(LUT_sel)} [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
-            //      |""".stripMargin
-            //     LUT_sel += 1
-            //     if (LUT_sel == 4) {
-            //         LUT_sel = 0
-            //     }
-            // }).reduce(_+_)
+    //         // // var LUT_sel = 0
+    //         // val xor_etp = (for (i <- 0 until entropy.length) yield {
+    //         //   s"""set_property LOC SLICE_X${locHint.loc_x+1}Y${locHint.loc_y-i-poly_offset} [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
+    //         //      |set_property DONT_TOUCH true [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
+    //         //      |set_property BEL ${LUT_name(LUT_sel)} [get_cells ${xdcPath}xor_etp_xe_${i}/inst/LUT6_inst]
+    //         //      |""".stripMargin
+    //         //     LUT_sel += 1
+    //         //     if (LUT_sel == 4) {
+    //         //         LUT_sel = 0
+    //         //     }
+    //         // }).reduce(_+_)
+            
+    //         var ept_offset = (entropy.length/4).toInt + 1
+    //         val pblock =
+    //             s"""create_pblock ring_generator_base
+    //             |add_cells_to_pblock [get_pblocks ring_generator_base] [get_cells ${xdcPath}*]
+    //             |add_cells_to_pblock [get_pblocks ring_generator_base] [get_cells ${xdcPath}]
+    //             |resize_pblock [get_pblocks ring_generator_base] -add {SLICE_X${locHint.loc_x}Y${locHint.loc_y}:SLICE_X${locHint.loc_x+3}Y${locHint.loc_y-poly_offset-ept_offset}}
+    //             |set_property IS_SOFT FALSE [get_pblocks ring_generator_base]
+    //             |set_property EXCLUDE_PLACEMENT TRUE [get_pblocks ring_generator_base]
+    //             |""".stripMargin
 
-            val pblock =
-                s"""create_pblock ring_generator_base
-                |add_cells_to_pblock [get_pblocks ring_generator_base] [get_cells ${xdcPath}*]
-                |add_cells_to_pblock [get_pblocks ring_generator_base] [get_cells ${xdcPath}]
-                |resize_pblock [get_pblocks ring_generator_base] -add {SLICE_X${locHint.x1}Y${locHint.y1}:SLICE_X${locHint.x2}Y${locHint.y2}}
-                |set_property IS_SOFT FALSE [get_pblocks ring_generator_base]
-                |""".stripMargin
-
-            xor_poly + xor_etp + variations
-        }
-    )//ElaborationArtefacts
+    //         //pblock //xor_poly + xor_etp + variations
+    //     }
+    // )//ElaborationArtefacts
 }
