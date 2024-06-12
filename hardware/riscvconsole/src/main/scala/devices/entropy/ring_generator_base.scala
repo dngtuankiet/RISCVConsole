@@ -33,7 +33,8 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
         //data
         val iBit = Input(Bool())
         val oState = Output(UInt(size.W))
-        val oSerial = Output(Bool())
+        val oSerial1 = Output(Bool())
+        val oSerial2 = Output(Bool())
     })
 
     val xor_poly = VecInit.tabulate(poly.length){ i =>
@@ -107,7 +108,8 @@ class RingGeneratorBase(val size: Int = 16, val poly: Seq[Int], val src: Seq[Int
         }
 
         io.oState := state.asUInt
-        io.oSerial := state(0)
+        io.oSerial1 := state(0)
+        io.oSerial2 := state(16)
     }
 
 
