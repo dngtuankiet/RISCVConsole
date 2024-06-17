@@ -31,8 +31,12 @@ class XPR(val size: Int = 16) extends Module{
     })
 
     //Ring Generator Base
-    val poly = Seq(10,7,4)
-    val src = Seq(3,4,6)
+    // val poly = Seq(10,7,4)
+    // val src = Seq(3,4,6)
+
+    //x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
+    val poly = Seq(13,12,9,6,3)
+    val src = Seq(2,2,3,5,6)
 
     //Config settings
     // val entropy = Seq(15,12,7,5) //Default  
@@ -42,19 +46,21 @@ class XPR(val size: Int = 16) extends Module{
     // val entropy = Seq(7) //Test#4 > Test#3 > Test#2 & Test#1
     // val entropy = Seq(7,5) //Test#5 - with only 1 EC
     // val entropy = Seq(7,5,2) //Test#6 - with only 1 EC
-    val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
+    // val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
     // val entropy = Seq(7) //Test#8 - fixed placement of base, including all xor gate
     // val entropy = Seq(7,5,2) //Test#9 - fixed placement of base, including all xor gate, 1 EC for all etp
     // val entropy = Seq(15,12,7,5) //Test#10 - fixed placement of base, including all xor gate, 2 EC
 
+    val entropy = Seq(13,10,7,4) //Full entropy sources for poly x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
+
     //Placement settings
-    // val baseLocHint = new baseLocHint(loc_x=30, loc_y=149) //Test7-mid1
+    val baseLocHint = new baseLocHint(loc_x=30, loc_y=149) //Test7-mid1
     // val baseLocHint = new baseLocHint(loc_x=2, loc_y=198) //Test7-topleft
     // val baseLocHint = new baseLocHint(loc_x=74, loc_y=198) //Test7-topright
     // val baseLocHint = new baseLocHint(loc_x=30, loc_y=197) //Test7-top
     // val baseLocHint = new baseLocHint(loc_x=2, loc_y=13) //Test7-botleft
     // val baseLocHint = new baseLocHint(loc_x=74, loc_y=3) //Test7-botright
-    val baseLocHint = new baseLocHint(loc_x=30, loc_y=2) //Test7-bot
+    // val baseLocHint = new baseLocHint(loc_x=30, loc_y=2) //Test7-bot
 
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
@@ -70,8 +76,8 @@ class XPR(val size: Int = 16) extends Module{
     // val x = 0
     // val y = 121
 
-    // val x = 28 //Test7-mid1
-    // val y = 149 //Test7-mid1
+    val x = 28 //Test7-mid1
+    val y = 149 //Test7-mid1
     // val x = 0 //Test7-topleft
     // val y = 198 //Test7-topleft
     // val x = 72 //Test7-topright
@@ -82,8 +88,8 @@ class XPR(val size: Int = 16) extends Module{
     // val y = 13 //Test7-botleft
     // val x = 72 //Test7-botright
     // val y = 3 //Test7-botright
-    val x = 28 //Test7-bot
-    val y = 2 //Test7-bot
+    // val x = 28 //Test7-bot
+    // val y = 2 //Test7-bot
 
     val slice_num = 2
     val sliceLocHints = Seq.tabulate(slice_num)(i => new sliceLocHint(x+i, y))
