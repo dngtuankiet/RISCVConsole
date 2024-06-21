@@ -12,9 +12,10 @@ import freechips.rocketchip.util.ElaborationArtefacts
 import riscvconsole.devices.entropy._
 
 class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
+
     val io = IO(new Bundle{
         // //control
-        // val iMode = Input(Bool()) //mode 0: TRNG, mode 1: PUF
+        val iMode = Input(Bool()) //mode 0: TRNG, mode 1: PUF
         //for XPRSlice
         val iR = Vec(xpr_slices_num, Input(Bool()))
         val i1 = Vec(xpr_slices_num, Input(Bool()))
@@ -22,18 +23,24 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
         //for base
         val iRst = Input(Bool())
         val iEn = Input(Bool())
-        // val iInit = Input(Bool()) //use seed or not
-        // val iSeed = Input(UInt(size.W))
+        val iInit = Input(Bool()) //use seed or not
+        val iSeed = Input(UInt(size.W))
         val iDelay = Input(UInt(32.W)) //for stablizing
         //read out
         val iNext = Input(Bool())
         val oValid = Output(Bool())
-        // val oReady = Output(Bool())
         val oValue = Output(UInt(32.W))
-
-        //for PUF
+        //for orignal xor PUF
         val oPUF = Output(UInt(32.W))
+        //for puf
+        // val oReady = Output(Bool())
     })
+
+    //-----Parameters------
+
+    val RANDOM_MODE = false.B
+    val PUF_MODE = true.B
+    val sIdle :: sRandom :: sPUFInit :: sPUFCalib :: sPUFReady :: sPUFRead :: Nil = Enum(6)
 
     //-----Ring Generator Base polynomial-----
     // x^32 + x^25 + x^15 + x^7 + 1
@@ -76,15 +83,35 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
         Module(new XPRSlice(true, sliceLocHints(i), s"xpr_slice_$i")).suggestName(s"xpr_slice_$i")
     )
 
-    //-----Connect modules-----
+    //-----Control Signals-----
     //Ring Generator Base
-    xpr_base.io.iRst := io.iRst
-    xpr_base.io.iEn := io.iEn //TODO: use FSM to inject seed later
-    xpr_base.io.iInit := false.B //TODO: use FSM to inject seed later
-    xpr_base.io.iBit := false.B //TODO: use FSM to inject seed later
-    val bit = WireDefault(0.U(1.W))
-    bit := xpr_base.io.oSerial
+    val rg_enable = WireDefault(false.B)
+    val rg_init = WireDefault(false.B)
+    val rg_ibit = WireDefault(0.U(1.W))
 
+    xpr_base.io.iRst := io.iRst
+    xpr_base.io.iEn := rg_enable
+    xpr_base.io.iInit := rg_init
+    xpr_base.io.iBit := rg_ibit
+
+    def fallingedge(x: Bool) = !x && RegNext(x)
+    val InitTrigger = fallingedge(io.iInit)
+
+    val state = RegInit(sIdle)
+    // val inStatePUFCalib = WireDefault(false.B)
+    // val inStatePUFRead = WireDefault(false.B)
+
+    val seed_cnt = RegInit(0.U(5.W)) //32 bit counter
+    when(io.iRst){
+      seed_cnt := 0.U
+    }.otherwise{
+      when(state === sPUFInit){
+        seed_cnt := seed_cnt + 1.U
+      }
+    }
+    rg_ibit := io.iSeed(seed_cnt) //seed injection to ring generator
+
+    //-----Connect modules-----
     //XPR
     (0 until xpr_slices_num).foreach { i =>
         xpr_slice(i).io.iR := io.iR(i)
@@ -94,30 +121,40 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
   
     // auto route multiple ECs
     xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
-      input := output
+      input := Mux(io.iMode === RANDOM_MODE || (io.iMode === PUF_MODE & (state === sPUFCalib) & (state === sPUFRead)), output, false.B)
+      // input := output
     }
 
-    //-----Connect PUF------
+    // original xor puf
     io.oPUF := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
 
-    //-----Control FSM-----
-    //delay counter - initial wait time for calibration
-    val tick = RegInit(false.B)
-    val delayCnt = RegInit(0.U(32.W))
+    //-----Calibration counter-------
+    //Random Mode: Enable the ring, the calibration start
+    //PUF Mode: After loading the seed, the calibration start
+    val calibration_finished = RegInit(false.B)
+    val calibration_cnt = RegInit(0.U(32.W))
 
     when(io.iRst){
-        delayCnt := 0.U
-        tick := false.B
-    }.elsewhen(io.iEn && !tick) {
-        delayCnt := Mux(delayCnt === io.iDelay, 0.U, delayCnt + 1.U)
-        tick := delayCnt === io.iDelay
+      calibration_cnt := 0.U
+      calibration_finished := false.B
+    }.otherwise{
+      when(io.iMode === RANDOM_MODE){
+        when(io.iEn && !calibration_finished){
+          calibration_cnt := calibration_cnt + 1.U
+          calibration_finished := calibration_cnt === io.iDelay
+        }
+      }.otherwise{ //PUF mode
+        when(io.iEn & (state === sPUFCalib) & !calibration_finished){
+          calibration_cnt := calibration_cnt + 1.U
+          calibration_finished := calibration_cnt === io.iDelay
+        }
+      }
     }
 
-    //shift reg to collect outputs
+    //-----Output shift register-------
     val shiftReg = RegInit(0.U(32.W))
     val collectCnt = RegInit(0.U(5.W))
     val valid = RegInit(false.B)
-    val ready = RegInit(true.B)
 
     def risingedge(x: Bool) = x && !RegNext(x)
     val nextTrigger = risingedge(io.iNext)
@@ -126,18 +163,96 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
         collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
         valid := false.B // reset valid when not sampling
     }.otherwise{
-        when(tick && !valid) {
-            shiftReg := bit ## shiftReg(31, 1)
-            collectCnt := collectCnt + 1.U
-            valid := collectCnt === 31.U //valid read data when counter reaches 31
+      when(io.iMode === RANDOM_MODE){
+        when(calibration_finished && !valid) {
+          shiftReg := xpr_base.io.oSerial ## shiftReg(31, 1)
+          collectCnt := collectCnt + 1.U
+          valid := collectCnt === 31.U //valid read data when counter reaches 31
         }
+      }.otherwise{ //PUF mode
+        when(calibration_finished && inStatePUFRead && !valid) {
+          shiftReg := xpr_base.io.oSerial ## shiftReg(31, 1)
+          collectCnt := collectCnt + 1.U
+          valid := collectCnt === 31.U //valid read data when counter reaches 31
+        }
+      }
     }
 
     io.oValue := Mux(valid, shiftReg, 0.U)
     io.oValid := valid
 
-    //TODO:
-    //Control FSM to initialize challenge and read outputs
+
+    //-----FSM Control Signals------    
+    switch(state){
+      is(sIdle) {
+        //signal transition
+        rg_enable := false.B
+        rg_init := false.B
+        // inStatePUFCalib := false.B
+        // inStatePUFRead := false.B
+        //state transition
+        when(io.iMode === RANDOM_MODE && io.iEn){
+          state := sRandom
+        }
+        //state transition
+        when(io.iMode === PUF_MODE && io.iEn && io.iInit){
+          state := sPUFInit
+        }
+      }
+      is(sRandom){
+        //signal transition
+        rg_enable := true.B
+        rg_init := false.B
+        // inStatePUFCalib := false.B
+        // inStatePUFRead := false.B
+        //state transition
+        when(io.iRst){
+          state := sIdle
+        }
+      }
+      is(sPUFInit){
+        //signal transition
+        rg_enable := true.B
+        rg_init := true.B
+        // inStatePUFCalib := false.B
+        // inStatePUFRead := false.B
+        //state transition
+        when(seed_cnt === 31.U){
+          state := sPUFCalib
+        }
+      }
+      is(sPUFCalib){
+        //signal transition
+        rg_enable := true.B
+        rg_init := false.B
+        // inStatePUFCalib := true.B
+        // inStatePUFRead := false.B
+        //state transition
+        when(calibration_finished){
+          state := sPUFReady
+        }
+      }
+      is(sPUFReady){
+        //signal transition
+        rg_enable := false.B
+        rg_init := false.B
+        //state transition
+        when(nextTrigger){
+          state := sPUFRead
+        }
+      }
+      is(sPUFRead){
+        //signal transition
+        rg_enable := true.B
+        rg_init := false.B
+        // inStatePUFCalib := false.B
+        // inStatePUFRead := true.B
+        //state transition
+        when(valid){
+          state := sPUFReady
+        }
+      }
+    }
 
 
     ElaborationArtefacts.add(
@@ -182,6 +297,7 @@ object XPRCtrlRegs {
   val ctrl_i1     = 0x14
   val ctrl_i2     = 0x18
   val puf         = 0x1C
+  val seed        = 0x20
 }
 
 // mapping between HW ports and register-map
@@ -203,10 +319,13 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
     val ir     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
     val i1     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
     val i2     = VecInit(Seq.fill(xpr_slices)(RegInit(false.B)))
+    val mode   = RegInit(false.B)
     val rst    = RegInit(false.B)
     val enable = RegInit(false.B)
     val next   = RegInit(false.B)
     val delay  = RegInit(0.U(32.W))
+    val init   = RegInit(false.B)
+    val seed   = RegInit(0.U(32.W))
     val puf    = RegInit(0.U(32.W))
     // mapping inputs
     for (i <- 0 until xpr_slices) {
@@ -217,10 +336,13 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
     // mod.io.iR := ir
     // mod.io.i1 := i1
     // mod.io.i2 := i2
+    mod.io.iMode := mode
     mod.io.iRst   := reset.asBool || rst
     mod.io.iEn    := enable
     mod.io.iNext  := next
     mod.io.iDelay := delay
+    mod.io.iInit  := init
+    mod.io.iSeed  := seed
 
     // declare outputs
     val valid  = Wire(Bool())
@@ -237,8 +359,9 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
       XPRCtrlRegs.control -> Seq(
       RegField(1, enable, RegFieldDesc("trigger", "XPR enable")),
       RegField(1, next, RegFieldDesc("trigger", "XPR next")),
-      RegField(1),
-      RegField(5),
+      RegField(1, init , RegFieldDesc("init", "XPR init")),
+      RegField(1, mode , RegFieldDesc("mode", "XPR mode")),
+      RegField(4),
       RegField(1, rst, RegFieldDesc("rst", "XPR reset", reset = Some(0)))
       ),
       XPRCtrlRegs.status -> Seq(
@@ -255,7 +378,8 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
       XPRCtrlRegs.ctrl_i2 -> Seq.tabulate(xpr_slices) { i =>
         RegField(1, i2(i), RegFieldDesc("ctrl_i2", s"control i2 $i for XPR"))
       },
-      XPRCtrlRegs.puf -> Seq(RegField.r(32, puf, RegFieldDesc("output", "output puf for XPR", volatile = true)))
+      XPRCtrlRegs.puf -> Seq(RegField.r(32, puf, RegFieldDesc("output", "output puf for XPR", volatile = true))),
+      XPRCtrlRegs.seed -> Seq(RegField(32, seed, RegFieldDesc("seed", "seed for XPR")))
     )
     regmap(mapping :_*)
     val omRegMap = OMRegister.convert(mapping:_*)
