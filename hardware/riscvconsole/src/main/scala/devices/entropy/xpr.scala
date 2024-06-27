@@ -54,19 +54,19 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     //Ring Generator base
     val entropy = Seq(31,30,29,27,26,25,24,22,21,20,18,17,15,14,13,11,10,9,7,6,5,4,2,1) //Full entropy sources for poly x^32 + x^25 + x^15 + x^7 + 1
     // val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149) //mid 1
-    // val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 199) //top left
+    val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 199) //top left
     // val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 12) //bot left
-    val baseLocHint = new baseLocHint(loc_x = 54, loc_y = 92) //mid 2
+    // val baseLocHint = new baseLocHint(loc_x = 54, loc_y = 92) //mid 2
 
     //XPRSlice
     // val x = 28  //mid 1
     // val y = 149 //mid 1
-    // val x = 0   //top left
-    // val y = 199 //top left
+    val x = 0   //top left
+    val y = 199 //top left
     // val x = 0 //bot left
     // val y = 12 //bot left
-    val x = 52 //mid 2
-    val y = 92
+    // val x = 52 //mid 2
+    // val y = 92
 
     val sliceLocHints = Seq.tabulate(xpr_slices_num)(i => {
       val newX = if (i % 2 == 1) x + 1 else x
@@ -108,7 +108,7 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
 
     val state = RegInit(sIdle)
     // val inStatePUFCalib = WireDefault(false.B)
-    // val inStatePUFRead = WireDefault(false.B)
+    // val inStatePUFRead = WyireDefault(false.B)
 
     val seed_cnt = RegInit(0.U(5.W)) //32 bit counter
     when(io.iRst){
