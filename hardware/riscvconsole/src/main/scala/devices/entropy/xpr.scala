@@ -32,25 +32,25 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
 
     //-----Ring Generator Base polynomial-----
     // x^16 + x^10 + x^7 + x^4 + 1
-    // val poly = Seq(10,7,4)
-    // val src = Seq(3,4,6)
+    val poly = Seq(10,7,4)
+    val src = Seq(3,4,6)
 
     //x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
-    val poly = Seq(13,12,9,6,3)
-    val src = Seq(2,2,3,5,6)
+    // val poly = Seq(13,12,9,6,3)
+    // val src = Seq(2,2,3,5,6)
 
     //-----Config settings-----
 
     //Ring Generator base
     // val entropy = Seq(15,14,12,9,7,5,2,1) //Full entropy sources for poly x^16 + x^10 + x^7 + x^4 + 1
-    val entropy = Seq(13,10,7,4) //Full entropy sources for poly x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
-
+    // val entropy = Seq(13,10,7,4) //Full entropy sources for poly x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
+    val entropy = Seq(15,12,7,5)
 
     val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149)
 
     //XPRSlice
     val x = 28
-    val y = 149
+    val y = 147
     val sliceLocHints = Seq.tabulate(xpr_slices_num)(i => {
       val newX = if (i % 2 == 1) x + 1 else x
       val rows = i / 2
@@ -61,7 +61,8 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
 
     //-----Instantiate modules-----
     //Ring Generator Base
-    val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
+    // val xpr_base_cdc = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
+    val xpr_base_cdc = Module(new RingGeneratorBaseCDC(size, poly, src, entropy, baseLocHint))
 
     //XPR
     val xpr_slice = Seq.tabulate(xpr_slices_num)(i =>
@@ -70,12 +71,15 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
 
     //-----Connect modules-----
     //Ring Generator Base
-    xpr_base.io.iRst := io.iRst
-    xpr_base.io.iEn := io.iEn //TODO: use FSM to inject seed later
-    xpr_base.io.iInit := false.B //TODO: use FSM to inject seed later
-    xpr_base.io.iBit := false.B //TODO: use FSM to inject seed later
-    val bit = WireDefault(0.U(1.W))
-    bit := xpr_base.io.oSerial
+    xpr_base_cdc.io.iRst := io.iRst
+    xpr_base_cdc.io.iEn := io.iEn //TODO: use FSM to inject seed later
+    xpr_base_cdc.io.iInit := false.B //TODO: use FSM to inject seed later
+    xpr_base_cdc.io.iBit := false.B //TODO: use FSM to inject seed later
+
+    xpr_base_cdc.io.iClk0 := xpr_slice(1).io.out1.asClock()
+    xpr_base_cdc.io.iClk1 := xpr_slice(1).io.out2.asClock()
+    xpr_base_cdc.io.iClk2 := xpr_slice(0).io.out1.asClock()
+    xpr_base_cdc.io.iClk3 := xpr_slice(0).io.out2.asClock()  
 
     //XPR
     (0 until xpr_slices_num).foreach { i =>
@@ -85,7 +89,7 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
     }
   
     // auto route multiple ECs
-    xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
+    xpr_base_cdc.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
       input := output
     }
 
@@ -106,7 +110,7 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
     val shiftReg = RegInit(0.U(32.W))
     val collectCnt = RegInit(0.U(5.W))
     val valid = RegInit(false.B)
-    val ready = RegInit(true.B)
+    // val ready = RegInit(true.B)
 
     def risingedge(x: Bool) = x && !RegNext(x)
     val nextTrigger = risingedge(io.iNext)
@@ -114,9 +118,10 @@ class XPR(val size: Int = 16, val xpr_slices_num: Int = 4) extends Module{
     when(io.iRst || nextTrigger){ //restart sampling when reset or ready to sample
         collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
         valid := false.B // reset valid when not sampling
+        shiftReg := 0.U
     }.otherwise{
         when(tick && !valid) {
-            shiftReg := bit ## shiftReg(31, 1)
+            shiftReg := xpr_base_cdc.io.oSerial ## shiftReg(31, 1)
             collectCnt := collectCnt + 1.U
             valid := collectCnt === 31.U //valid read data when counter reaches 31
         }
