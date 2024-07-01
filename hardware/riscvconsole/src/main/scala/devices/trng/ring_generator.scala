@@ -25,7 +25,8 @@ class RingGenerator(val stage: Int = 32, val InjectNum: Int = 5, val injectList:
   val io = IO(new Bundle {
     val i_inject = Input(UInt(InjectNum.W))
     val i_en     = Input(Bool())
-    val o_bit    = Output(UInt(1.W))
+    val o_bit1    = Output(UInt(1.W))
+    val o_bit2   = Output(UInt(1.W))
   })
   //default value
   val stateReg    = RegInit(VecInit(Seq.fill(stage)(0.U(1.W)))) // Creating a 32-bit register as a vector of 1-bit elements
@@ -53,7 +54,8 @@ class RingGenerator(val stage: Int = 32, val InjectNum: Int = 5, val injectList:
     }
   }
 
-  io.o_bit := stateReg(stage-1)
+  io.o_bit1 := stateReg(stage-1)
+  io.o_bit2 := stateReg((stage/2)-1)
 //  when(io.i_en){
 //    io.o_bit := stateReg(31)
 //  }.otherwise(

@@ -37,21 +37,29 @@ class TRNG extends Module with hasTRNGIO {
   // val ro = Module(new RingOscillator(4, true))
 
 
-  val injectList = List(8,10,13)
+  val injectList = List(0,1,3,6,8,10,13)
   val feedbackSrc = List(12,11,9)
   val feedbackDst = List(2,4,5)
 
-  val rg = Module(new RingGenerator(16, 3, injectList, feedbackSrc, feedbackDst, true))
-  val ro = Module(new RingOscillator(2, true))
+  // val rg = Module(new RingGenerator(16, 3, injectList, feedbackSrc, feedbackDst, true))
+  val rg = Module(new RingGeneratorCDC(16, InjectNum=7, injectList, feedbackSrc, feedbackDst, true))
+  val ro = Module(new RingOscillator(6, true))
 
   //Default
-  val rg_bit    = WireDefault(0.U(1.W))
-  rg_bit := rg.io.o_bit
+  val rg_bit1 = WireDefault(0.U(1.W))
+  rg_bit1 := rg.io.o_bit1
+  val rg_bit2 = WireDefault(0.U(1.W))
+  rg_bit2 := rg.io.o_bit2
   
   /* Pins */
   rg.io.i_inject := ro.io.o_out
   rg.io.i_en := io.iEn
+  rg.io.iRst := io.iRst
   ro.io.i_en := io.iEn
+
+  rg.io.iClk0 := ro.io.o_out(0).asClock()
+  rg.io.iClk1 := ro.io.o_out(2).asClock()
+  rg.io.iClk2 := ro.io.o_out(4).asClock()
 
   //delay counter - initial wait time for calibration
   val tick = RegInit(false.B)
@@ -75,7 +83,8 @@ class TRNG extends Module with hasTRNGIO {
   }
 
   val shiftReg = RegInit(0.U(32.W))
-  val collectCnt = RegInit(0.U(5.W))
+  val collectCnt = RegInit(0.U(5.W)) 
+  // val collectCnt = RegInit(0.U(4.W)) //change here 2b
   val valid = RegInit(false.B)
   val ready = RegInit(true.B)
 
@@ -85,11 +94,13 @@ class TRNG extends Module with hasTRNGIO {
   when(io.iRst || nextTrigger){ //restart sampling when reset or ready to sample
     collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
     valid := false.B // reset valid when not sampling
+    shiftReg := 0.U
   }.otherwise{
     when(tick && !valid) {
-      shiftReg := rg_bit ## shiftReg(31, 1)
+      // shiftReg := (shiftReg(29, 0) ## (rg_bit1 ## rg_bit2)) //change here 2b
+      shiftReg := (shiftReg(30, 0) ## (rg_bit1))
       collectCnt := collectCnt + 1.U
-      when(collectCnt === 31.U) {
+      when(collectCnt === 31.U) { //change here 2b
         valid := true.B //valid read data
       }.otherwise{
         valid := valid
