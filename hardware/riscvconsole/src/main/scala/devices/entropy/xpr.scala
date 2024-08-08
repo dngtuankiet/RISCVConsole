@@ -31,8 +31,12 @@ class XPR(val size: Int = 16) extends Module{
     })
 
     //Ring Generator Base
-    val poly = Seq(10,7,4)
-    val src = Seq(3,4,6)
+    // val poly = Seq(10,7,4)
+    // val src = Seq(3,4,6)
+
+    //x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
+    val poly = Seq(13,12,9,6,3)
+    val src = Seq(2,2,3,5,6)
 
     //Config settings
     // val entropy = Seq(15,12,7,5) //Default  
@@ -42,10 +46,12 @@ class XPR(val size: Int = 16) extends Module{
     // val entropy = Seq(7) //Test#4 > Test#3 > Test#2 & Test#1
     // val entropy = Seq(7,5) //Test#5 - with only 1 EC
     // val entropy = Seq(7,5,2) //Test#6 - with only 1 EC
-    val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
+    // val entropy = Seq(15,7,5,2) //Test#7 - fixed placement of base, including all xor gate, use two 2EC
     // val entropy = Seq(7) //Test#8 - fixed placement of base, including all xor gate
     // val entropy = Seq(7,5,2) //Test#9 - fixed placement of base, including all xor gate, 1 EC for all etp
     // val entropy = Seq(15,12,7,5) //Test#10 - fixed placement of base, including all xor gate, 2 EC
+
+    val entropy = Seq(13,10,7,4) //Full entropy sources for poly x^16 + x^13 + x^12 + x^9 + x^6 + x^3 + 1
 
     //Placement settings
     val baseLocHint = new baseLocHint(loc_x=30, loc_y=149) //Test7-mid1
