@@ -25,6 +25,21 @@ class xilinx_xor() extends Module {
   io.out := inst.io.out
 }
 
+class xilinx_xor3() extends Module {
+  val io = IO(new Bundle{
+    val i0 = Input(Bool())
+    val i1 = Input(Bool())
+    val i2 = Input(Bool())
+    val out = Output(Bool())
+  })
+  val inst = Module(new xilinx_primitive_xor3())
+  inst.io.i0 := io.i0
+  inst.io.i1 := io.i1
+  inst.io.i2 := io.i2
+  io.out := inst.io.out
+}
+
+
 class xilinx_nand() extends Module {
   val io = IO(new Bundle{
     val i0 = Input(Bool())
@@ -104,6 +119,58 @@ class xilinx_primitive_xor() extends BlackBox with HasBlackBoxInline{
      |
      |  assign w0 = i0;
      |  assign w1 = i1;
+     |  assign out = w2;
+     |  endmodule
+     |""".stripMargin
+  )
+}
+
+class xilinx_primitive_xor3() extends BlackBox with HasBlackBoxInline{
+  val io = IO(new Bundle(){
+    //Inputs
+    val i0 = Input(Bool())
+    val i1 = Input(Bool())
+    val i2 = Input(Bool())
+    //Output
+    val out = Output(Bool())
+  })
+
+  /*
+  * XOR truth table
+  * out - i0 i1
+  * 0      0  0
+  * 1      0  1
+  * 1      1  0
+  * 0      1  1
+  * The config for INIT is 0x06
+  * */
+
+  setInline("xilinx_primitive_xor3.v",
+  s"""(* DONT_TOUCH = "yes" *) module xilinx_primitive_xor3(
+     |  input i0,
+     |  input i1,
+     |  input i2,
+     |  output out
+     |  );
+     |  (* DONT_TOUCH = "yes" *) wire  w0;
+     |  (* DONT_TOUCH = "yes" *) wire  w1;
+     |  (* DONT_TOUCH = "yes" *) wire  w2;
+     |  (* DONT_TOUCH = "yes" *) wire  w3;
+     |  LUT6 #(
+     |      .INIT(64'h0000000000000096)  // Specify LUT Contents
+     |  ) LUT6_inst (
+     |     .O(w2),   // LUT general output
+     |     .I0(w0), // LUT input
+     |     .I1(w1), // LUT input
+     |     .I2(w3), // LUT input
+     |     .I3(0), // LUT input
+     |     .I4(0), // LUT input
+     |     .I5(0)  // LUT input
+     |  );
+     |
+     |  assign w0 = i0;
+     |  assign w1 = i1;
+     |  assign w3 = i2;
      |  assign out = w2;
      |  endmodule
      |""".stripMargin
