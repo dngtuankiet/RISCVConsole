@@ -48,19 +48,19 @@ class XPR(val size: Int = 16) extends Module{
     // val entropy = Seq(15,12,7,5) //Test#10 - fixed placement of base, including all xor gate, 2 EC
 
     //Placement settings
-    // val baseLocHint = new baseLocHint(loc_x=30, loc_y=149) //Test7-mid1
+    val baseLocHint = new baseLocHint(loc_x=30, loc_y=149) //Test7-mid1
     // val baseLocHint = new baseLocHint(loc_x=2, loc_y=198) //Test7-topleft
     // val baseLocHint = new baseLocHint(loc_x=74, loc_y=198) //Test7-topright
     // val baseLocHint = new baseLocHint(loc_x=30, loc_y=197) //Test7-top
     // val baseLocHint = new baseLocHint(loc_x=2, loc_y=13) //Test7-botleft
     // val baseLocHint = new baseLocHint(loc_x=74, loc_y=3) //Test7-botright
-    val baseLocHint = new baseLocHint(loc_x=30, loc_y=2) //Test7-bot
+    // val baseLocHint = new baseLocHint(loc_x=30, loc_y=2) //Test7-bot
 
     val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
 
     //xpr_base control
     xpr_base.io.iRst := io.iRst
-    xpr_base.io.iEn := io.iEn //TODO: use FSM to inject seed later
+    
     xpr_base.io.iInit := false.B //TODO: use FSM to inject seed later
     xpr_base.io.iBit := false.B //TODO: use FSM to inject seed later
     val bit = WireDefault(0.U(1.W))
@@ -70,8 +70,8 @@ class XPR(val size: Int = 16) extends Module{
     // val x = 0
     // val y = 121
 
-    // val x = 28 //Test7-mid1
-    // val y = 149 //Test7-mid1
+    val x = 28 //Test7-mid1
+    val y = 149 //Test7-mid1
     // val x = 0 //Test7-topleft
     // val y = 198 //Test7-topleft
     // val x = 72 //Test7-topright
@@ -82,8 +82,8 @@ class XPR(val size: Int = 16) extends Module{
     // val y = 13 //Test7-botleft
     // val x = 72 //Test7-botright
     // val y = 3 //Test7-botright
-    val x = 28 //Test7-bot
-    val y = 2 //Test7-bot
+    // val x = 28 //Test7-bot
+    // val y = 2 //Test7-bot
 
     val slice_num = 2
     val sliceLocHints = Seq.tabulate(slice_num)(i => new sliceLocHint(x+i, y))
@@ -153,7 +153,7 @@ class XPR(val size: Int = 16) extends Module{
             valid := collectCnt === 31.U //valid read data when counter reaches 31
         }
     }
-
+    xpr_base.io.iEn := (io.iEn) & (!valid) //TODO: use FSM to inject seed later
     io.oValue := Mux(valid, shiftReg, 0.U)
     io.oValid := valid
 
