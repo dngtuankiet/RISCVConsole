@@ -46,27 +46,27 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
 
     //-----Ring Generator Base polynomial-----
     // x^32 + x^25 + x^15 + x^7 + 1
-    val poly = Seq(25,15,7)
-    val src = Seq(3,8,12)
+    // val poly = Seq(25,15,7)
+    // val src = Seq(3,8,12)
 
     //-----Config settings-----
 
     //Ring Generator base
-    val entropy = Seq(31,30,29,27,26,25,24,22,21,20,18,17,15,14,13,11,10,9,7,6,5,4,2,1) //Full entropy sources for poly x^32 + x^25 + x^15 + x^7 + 1
+    // val entropy = Seq(31,30,29,27,26,25,24,22,21,20,18,17,15,14,13,11,10,9,7,6,5,4,2,1) //Full entropy sources for poly x^32 + x^25 + x^15 + x^7 + 1
     // val baseLocHint = new baseLocHint(loc_x = 30, loc_y = 149) //mid 1
-    val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 199) //top left
+    // val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 199) //top left
     // val baseLocHint = new baseLocHint(loc_x = 2, loc_y = 12) //bot left
-    // val baseLocHint = new baseLocHint(loc_x = 54, loc_y = 92) //mid 2
+    val baseLocHint = new baseLocHint(loc_x = 54, loc_y = 92) //mid 2
 
     //XPRSlice
     // val x = 28  //mid 1
     // val y = 149 //mid 1
-    val x = 0   //top left
-    val y = 199 //top left
+    // val x = 0   //top left
+    // val y = 199 //top left
     // val x = 0 //bot left
     // val y = 12 //bot left
-    // val x = 52 //mid 2
-    // val y = 92
+    val x = 52 //mid 2
+    val y = 92 //mid 2
 
     val sliceLocHints = Seq.tabulate(xpr_slices_num)(i => {
       val newX = if (i % 2 == 1) x + 1 else x
@@ -78,7 +78,8 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
 
     //-----Instantiate modules-----
     //Ring Generator Base
-    val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
+    // val xpr_base = Module(new RingGeneratorBase(size, poly, src, entropy, baseLocHint))
+    val xpr_base_verilog = Module(new RingGeneratorBaseVerilog(useXDC=true, baseLocHint, "ring_generator_base_verilog"))
 
     //XPR
     val xpr_slice = Seq.tabulate(xpr_slices_num)(i =>
@@ -87,21 +88,18 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
 
     //-----Control Signals-----
     //Ring Generator Base
-    val rg_enable = WireDefault(false.B)
-    val rg_init = WireDefault(false.B)
-    val rg_ibit = WireDefault(0.U(1.W))
+    val w_rg_enable = WireDefault(false.B)
+    val w_rg_init = WireDefault(false.B)
 
-    xpr_base.io.iRst := io.iRst
-    xpr_base.io.iEn := rg_enable
-    xpr_base.io.iInit := rg_init
-    xpr_base.io.iBit := rg_ibit
+    xpr_base_verilog.io.iClk := clock
+    xpr_base_verilog.io.iRst := io.iRst
+    xpr_base_verilog.io.iEn := w_rg_enable
+    xpr_base_verilog.io.iInit := w_rg_init
+    xpr_base_verilog.io.iChallenge := io.iSeed
 
-    //state of ring generator
-    withReset(io.iRst){
-      val r_rg_state = RegInit(0.U(size.W))
-      r_rg_state := xpr_base.io.oState
-      io.oRGState := r_rg_state
-    }
+    io.oRGState := xpr_base_verilog.io.oState
+
+
 
     def fallingedge(x: Bool) = !x && RegNext(x)
     val InitTrigger = fallingedge(io.iInit)
@@ -110,33 +108,28 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     // val inStatePUFCalib = WireDefault(false.B)
     // val inStatePUFRead = WyireDefault(false.B)
 
-    val seed_cnt = RegInit(0.U(5.W)) //32 bit counter
-    when(io.iRst){
-      seed_cnt := 0.U
-    }.otherwise{
-      when(state === sPUFInit){
-        seed_cnt := seed_cnt + 1.U
-      }
-    }
-    rg_ibit := io.iSeed(seed_cnt) //seed injection to ring generator
 
     //-----Connect modules-----
-    //XPR
+    // XPR
     (0 until xpr_slices_num).foreach { i =>
         xpr_slice(i).io.iR := io.iR(i)
         xpr_slice(i).io.i1 := io.i1(i)
         xpr_slice(i).io.i2 := io.i2(i)
     }
   
-    // auto route multiple ECs
-    xpr_base.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
-      input := Mux(io.iMode === RANDOM_MODE || (io.iMode === PUF_MODE & (state === sPUFCalib) & (state === sPUFRead)), output, false.B)
-    }
-
-    // original xor puf
+    // // auto route multiple ECs
+    // xpr_base_verilog.io.iEntropy.zip(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2))).foreach { case (input, output) =>
+    //   input := output
+    // }    
+    
+    // Gather all XPRSlice outputs
     val xpr_slice_outputs = WireDefault(0.U(32.W))
     xpr_slice_outputs := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
 
+    // Connect to XPR base verilog
+    xpr_base_verilog.io.iEntropy := xpr_slice_outputs
+
+    // Original XOR PUF
     val r_xor_puf = RegInit(0.U(32.W))
     when(xpr_slice_outputs =/= 0.U){
       r_xor_puf := xpr_slice_outputs
@@ -176,7 +169,7 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
           calibration_finished := calibration_cnt === io.iDelay
         }
       }.otherwise{ //PUF mode
-        when(io.iEn & (state === sPUFCalib) & !calibration_finished){
+        when(io.iEn & !io.iInit & !calibration_finished){
           calibration_cnt := calibration_cnt + 1.U
           calibration_finished := calibration_cnt === io.iDelay
         }
@@ -184,112 +177,28 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     }
 
     //-----Output shift register-------
-    val shiftReg = RegInit(0.U(32.W))
-    val collectCnt = RegInit(0.U(5.W))
-    val valid = RegInit(false.B)
+    val r_shiftReg = RegInit(0.U(32.W))
+    val r_collectCnt = RegInit(0.U(5.W))
+    val r_valid = RegInit(false.B)
 
     def risingedge(x: Bool) = x && !RegNext(x)
     val nextTrigger = risingedge(io.iNext)
 
     when(io.iRst || nextTrigger){ //restart sampling when reset or ready to sample
-        collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
-        valid := false.B // reset valid when not sampling
-        shiftReg := 0.U //reset shift register when not sampling
+        r_collectCnt := 0.U //reset counter when sampling is disable and restart another sampling
+        r_valid := false.B // reset valid when not sampling
+        r_shiftReg := 0.U //reset shift register when not sampling
     }.otherwise{
-      when(io.iMode === RANDOM_MODE){
-        when(calibration_finished && !valid) {
-          shiftReg := xpr_base.io.oSerial ## shiftReg(31, 1)
-          collectCnt := collectCnt + 1.U
-          valid := collectCnt === 31.U //valid read data when counter reaches 31
-        }
-      }.otherwise{ //PUF mode
-        when(calibration_finished && (state === sPUFRead) && !valid) {
-          shiftReg := xpr_base.io.oSerial ## shiftReg(31, 1)
-          collectCnt := collectCnt + 1.U
-          valid := collectCnt === 31.U //valid read data when counter reaches 31
-        }
+      when(calibration_finished && !r_valid) {
+        r_shiftReg := xpr_base_verilog.io.oSerial ## r_shiftReg(31, 1)
+        r_collectCnt := r_collectCnt + 1.U
+        r_valid := r_collectCnt === 31.U //valid read data when counter reaches 31
       }
     }
+    w_rg_enable := !r_valid //Enable the RG in the readout stage when valid is DEASSERTED
 
-    io.oValue := Mux(valid, shiftReg, 0.U)
-    io.oValid := valid
-
-
-    //-----FSM Control Signals------    
-    switch(state){
-      is(sIdle) {
-        //signal transition
-        rg_enable := false.B
-        rg_init := false.B
-        // inStatePUFCalib := false.B
-        // inStatePUFRead := false.B
-        //state transition
-        when(io.iMode === RANDOM_MODE && io.iEn && (!io.iRst)){
-          state := sRandom
-        }
-        //state transition
-        when(io.iMode === PUF_MODE && io.iEn && io.iInit && (!io.iRst)){
-          state := sPUFInit
-        }
-      }
-      is(sRandom){
-        //signal transition
-        when(io.iRst){
-          rg_enable := false.B
-        }.otherwise{
-          rg_enable := true.B
-        }
-        rg_init := false.B
-        // inStatePUFCalib := false.B
-        // inStatePUFRead := false.B
-        //state transition
-        when(io.iRst){
-          state := sIdle
-        }
-      }
-      is(sPUFInit){
-        //signal transition
-        rg_enable := true.B
-        rg_init := true.B
-        // inStatePUFCalib := false.B
-        // inStatePUFRead := false.B
-        //state transition
-        when(seed_cnt === 31.U){
-          state := sPUFCalib
-        }
-      }
-      is(sPUFCalib){
-        //signal transition
-        rg_enable := true.B
-        rg_init := false.B
-        // inStatePUFCalib := true.B
-        // inStatePUFRead := false.B
-        //state transition
-        when(calibration_finished){
-          state := sPUFReady
-        }
-      }
-      is(sPUFReady){
-        //signal transition
-        rg_enable := false.B
-        rg_init := false.B
-        //state transition
-        when(nextTrigger){
-          state := sPUFRead
-        }
-      }
-      is(sPUFRead){
-        //signal transition
-        rg_enable := true.B
-        rg_init := false.B
-        // inStatePUFCalib := false.B
-        // inStatePUFRead := true.B
-        //state transition
-        when(valid){
-          state := sPUFReady
-        }
-      }
-    }
+    io.oValue := Mux(r_valid, r_shiftReg, 0.U)
+    io.oValid := r_valid
 
 
     ElaborationArtefacts.add(
