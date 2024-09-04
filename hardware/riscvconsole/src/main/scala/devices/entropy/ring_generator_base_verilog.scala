@@ -10,24 +10,24 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.ElaborationArtefacts
 
-case class baseLocHint(
-    loc_x: Int = 0,
-    loc_y: Int = 121
-)
+// case class baseLocHint(
+//     loc_x: Int = 0,
+//     loc_y: Int = 121
+// )
 
-class XPRSLICE_IO() extends Bundle {
+class RingGeneratorBaseVerilog_IO() extends Bundle {
     val iClk = Input(Clock())
     val iRst = Input(Bool())
     val iEn = Input(Bool())
     val iInit = Input(Bool())
-    val iEntropy = Input(Vec(24,Bool()))
+    val iEntropy = Input(UInt(24.W))
     val iChallenge = Input(UInt(32.W))
     val oState = Output(UInt(32.W))
     val oSerial = Output(Bool())
 }
 
 class RingGeneratorBaseVerilog(useXDC: Boolean=false, val locHint: baseLocHint=baseLocHint(), val instName: String) extends BlackBox with HasBlackBoxResource {
-    val io = IO(new XPRSLICE_IO())
+    val io = IO(new RingGeneratorBaseVerilog_IO())
 
     addResource("./entropy/ring_generator_base.v")
     if(useXDC){

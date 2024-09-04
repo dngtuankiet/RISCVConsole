@@ -7,7 +7,7 @@
 // val src = Seq(3,8,12)
 
 
-module RingGeneratorBase(
+module RingGeneratorBaseVerilog(
   input         iClk,
   input         iRst,
   input         iEn,
