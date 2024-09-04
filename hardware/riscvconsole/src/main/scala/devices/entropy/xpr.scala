@@ -89,20 +89,20 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     //-----Control Signals-----
     //Ring Generator Base
     val w_rg_enable = WireDefault(false.B)
-    val w_rg_init = WireDefault(false.B)
+    // val w_rg_init = WireDefault(false.B)
 
     xpr_base_verilog.io.iClk := clock
     xpr_base_verilog.io.iRst := io.iRst
     xpr_base_verilog.io.iEn := w_rg_enable
-    xpr_base_verilog.io.iInit := w_rg_init
+    xpr_base_verilog.io.iInit := io.iInit
     xpr_base_verilog.io.iChallenge := io.iSeed
 
     io.oRGState := xpr_base_verilog.io.oState
 
 
 
-    def fallingedge(x: Bool) = !x && RegNext(x)
-    val InitTrigger = fallingedge(io.iInit)
+    // def fallingedge(x: Bool) = !x && RegNext(x)
+    // val InitTrigger = fallingedge(io.iInit)
 
     val state = RegInit(sIdle)
     // val inStatePUFCalib = WireDefault(false.B)
@@ -127,7 +127,7 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     xpr_slice_outputs := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
 
     // Connect to XPR base verilog
-    xpr_base_verilog.io.iEntropy := xpr_slice_outputs
+    // xpr_base_verilog.io.iEntropy := xpr_slice_outputs
 
     // Original XOR PUF
     val r_xor_puf = RegInit(0.U(32.W))
@@ -136,9 +136,12 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     }.otherwise{
       r_xor_puf := r_xor_puf
     }
-    io.oXORPUF := r_xor_puf
+
+    xpr_base_verilog.io.iEntropy := r_xor_puf
+    
 
     // r_xor_puf := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
+    // val r_xor_puf = WireDefault(0.U(32.W))
     // r_xor_puf := Cat(xpr_slice(0).io.out1, xpr_slice(0).io.out2,
     //                 xpr_slice(1).io.out1, xpr_slice(1).io.out2,
     //                 xpr_slice(2).io.out1, xpr_slice(2).io.out2,
@@ -152,6 +155,7 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     //                 xpr_slice(10).io.out1, xpr_slice(10).io.out2,
     //                 xpr_slice(11).io.out1, xpr_slice(11).io.out2)
     
+    io.oXORPUF := r_xor_puf
 
     //-----Calibration counter-------
     //Random Mode: Enable the ring, the calibration start
@@ -195,7 +199,9 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
         r_valid := r_collectCnt === 31.U //valid read data when counter reaches 31
       }
     }
-    w_rg_enable := !r_valid //Enable the RG in the readout stage when valid is DEASSERTED
+    // w_rg_enable := !r_valid //Enable the RG in the readout stage when valid is DEASSERTED
+
+    w_rg_enable := io.iInit || (calibration_finished & !r_valid)
 
     io.oValue := Mux(r_valid, r_shiftReg, 0.U)
     io.oValid := r_valid
