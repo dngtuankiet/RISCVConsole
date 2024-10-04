@@ -20,6 +20,7 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
         val iR = Vec(xpr_slices_num, Input(Bool()))
         val i1 = Vec(xpr_slices_num, Input(Bool()))
         val i2 = Vec(xpr_slices_num, Input(Bool()))
+        val iMask = Input(UInt(32.W))
         //for base
         val iRst = Input(Bool())
         val iEn = Input(Bool())
@@ -124,25 +125,8 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     
     // Gather all XPRSlice outputs
     val xpr_slice_outputs = WireDefault(0.U(32.W))
-    xpr_slice_outputs := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
-
-    // Connect to XPR base verilog
-    // xpr_base_verilog.io.iEntropy := xpr_slice_outputs
-
-    // Original XOR PUF
-    val r_xor_puf = RegInit(0.U(32.W))
-    when(xpr_slice_outputs =/= 0.U){
-      r_xor_puf := xpr_slice_outputs
-    }.otherwise{
-      r_xor_puf := r_xor_puf
-    }
-
-    xpr_base_verilog.io.iEntropy := r_xor_puf
-    
-
-    // r_xor_puf := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out1, slice.io.out2)))
-    // val r_xor_puf = WireDefault(0.U(32.W))
-    // r_xor_puf := Cat(xpr_slice(0).io.out1, xpr_slice(0).io.out2,
+    xpr_slice_outputs := Cat(xpr_slice.flatMap(slice => Seq(slice.io.out2, slice.io.out1)).reverse)
+    // xpr_slice_outputs := Cat(xpr_slice(0).io.out1, xpr_slice(0).io.out2,
     //                 xpr_slice(1).io.out1, xpr_slice(1).io.out2,
     //                 xpr_slice(2).io.out1, xpr_slice(2).io.out2,
     //                 xpr_slice(3).io.out1, xpr_slice(3).io.out2,
@@ -154,7 +138,22 @@ class XPR(val size: Int = 32, val xpr_slices_num: Int = 12) extends Module{
     //                 xpr_slice(9).io.out1, xpr_slice(9).io.out2,
     //                 xpr_slice(10).io.out1, xpr_slice(10).io.out2,
     //                 xpr_slice(11).io.out1, xpr_slice(11).io.out2)
+
+    // Sample Original XOR PUF
+    val r_xor_puf = RegInit(0.U(32.W))
+    when(xpr_slice_outputs =/= 0.U){
+      r_xor_puf := xpr_slice_outputs
+    }.otherwise{
+      r_xor_puf := r_xor_puf
+    }
+
+    when(io.iMode === PUF_MODE){
+      xpr_base_verilog.io.iEntropy := (r_xor_puf & io.iMask)
+    }.otherwise{ //RANDOM_MODE
+      xpr_base_verilog.io.iEntropy := xpr_slice_outputs
+    }
     
+    // Output original XOR PUF
     io.oXORPUF := r_xor_puf
 
     //-----Calibration counter-------
@@ -251,6 +250,7 @@ object XPRCtrlRegs {
   val puf         = 0x1C
   val seed        = 0x20
   val rgstate     = 0x24
+  val mask        = 0x28
 }
 
 // mapping between HW ports and register-map
@@ -279,6 +279,7 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
     val delay  = RegInit(0.U(32.W))
     val init   = RegInit(false.B)
     val seed   = RegInit(0.U(32.W))
+    val mask   = RegInit(0.U(32.W))
     // mapping inputs
     for (i <- 0 until xpr_slices) {
       mod.io.iR(i) := ir(i)
@@ -292,6 +293,7 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
     mod.io.iDelay := delay
     mod.io.iInit  := init
     mod.io.iSeed  := seed
+    mod.io.iMask  := mask
 
     // declare outputs
     val valid  = Wire(Bool())
@@ -332,6 +334,7 @@ abstract class XPRmod(busWidthBytes: Int, c: XPRParams)(implicit p: Parameters)
       XPRCtrlRegs.puf -> Seq(RegField.r(32, xor_puf, RegFieldDesc("output", "output puf for XPR", volatile = true))),
       XPRCtrlRegs.seed -> Seq(RegField(32, seed, RegFieldDesc("seed", "seed for XPR"))),
       XPRCtrlRegs.rgstate -> Seq(RegField.r(32, rg_state, RegFieldDesc("output", "output RGState", volatile = true))),
+      XPRCtrlRegs.mask -> Seq(RegField(32, mask, RegFieldDesc("mask", "mask for XPR"))),
     )
     regmap(mapping :_*)
     val omRegMap = OMRegister.convert(mapping:_*)
